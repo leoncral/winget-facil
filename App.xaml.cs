@@ -1,0 +1,47 @@
+using Asa.Services;
+using Microsoft.UI.Xaml;
+
+namespace Asa;
+
+public partial class App : Application
+{
+    public static SettingsStore Settings { get; } = new();
+
+    public static WingetCli Winget { get; } = new();
+
+    public static PackageStore Packages { get; } = new(Winget);
+
+    public static OperationCenter Operations { get; } = new(Winget, Settings);
+
+    private Window? _window;
+
+    public App()
+    {
+        UnhandledException += App_UnhandledException;
+        InitializeComponent();
+    }
+
+    private static void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Asa");
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(
+                Path.Combine(directory, "crash.log"),
+                $"[{DateTime.Now:dd/MM/yyyy HH:mm:ss}] {e.Message}{Environment.NewLine}{e.Exception}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Logging must never mask the original failure.
+        }
+    }
+
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        _window = new MainWindow();
+        _window.Activate();
+    }
+}

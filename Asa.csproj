@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Asa</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\Asa.ico</ApplicationIcon>
+    <AssemblyName>Asa</AssemblyName>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\Asa.png" />
+    <None Remove="Assets\Asa.ico" />
+    <Content Include="Assets\Asa.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Asa.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    Windows App SDK 1.8 can omit the app's PRI and compiled XAML resources when publishing an
+    unpackaged app. Copy them after publish so the generated executable can start.
+    See https://github.com/microsoft/WindowsAppSDK/issues/6394.
+  -->
+  <Target Name="CopyXamlResourcesToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_XamlPublishResources Include="$(OutputPath)**\*.xbf" />
+      <_XamlPublishResources Include="$(OutputPath)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_XamlPublishResources)"
+      DestinationFiles="@(_XamlPublishResources->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+</Project>

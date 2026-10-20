@@ -10,7 +10,9 @@ public partial class App : Application
 
     public static WingetCli Winget { get; } = new();
 
-    public static PackageStore Packages { get; } = new(Winget);
+    public static InstalledVersionResolver VersionResolver { get; } = new();
+
+    public static PackageStore Packages { get; } = new(Winget, VersionResolver);
 
     public static RunningAppGuard RunningApps { get; } = new();
 

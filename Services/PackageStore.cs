@@ -7,12 +7,14 @@ public sealed class PackageStore
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(30);
     private readonly WingetCli _winget;
+    private readonly InstalledVersionResolver _versionResolver;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private DateTimeOffset _lastSuccessfulRefresh;
 
-    public PackageStore(WingetCli winget)
+    public PackageStore(WingetCli winget, InstalledVersionResolver? versionResolver = null)
     {
         _winget = winget;
+        _versionResolver = versionResolver ?? new InstalledVersionResolver();
     }
 
     public ObservableCollection<InstalledPackage> Installed { get; } = [];
@@ -55,6 +57,10 @@ public sealed class PackageStore
             try
             {
                 var packages = await _winget.GetInstalledPackagesAsync();
+
+                // Pacotes com versão "Unknown" podem ter a versão descoberta localmente
+                // (registro de desinstalação ou metadados do executável).
+                packages = await _versionResolver.ResolveUnknownVersionsAsync(packages);
 
                 Installed.Clear();
                 foreach (var package in packages)

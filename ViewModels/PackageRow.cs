@@ -79,9 +79,24 @@ public sealed class PackageRow : ObservableObject
             OnPropertyChanged(nameof(Id));
         }
 
-        if (!string.Equals(previous.Version, package.Version, StringComparison.Ordinal))
+        if (!string.Equals(previous.CurrentVersionDisplay, package.CurrentVersionDisplay, StringComparison.Ordinal))
         {
             OnPropertyChanged(nameof(CurrentVersion));
+        }
+
+        if (!string.Equals(previous.CurrentVersionCaption, package.CurrentVersionCaption, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(CurrentVersionCaption));
+        }
+
+        if (!string.Equals(previous.CurrentVersionToolTip, package.CurrentVersionToolTip, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(CurrentVersionToolTip));
+        }
+
+        if (previous.HasDetectedVersion != package.HasDetectedVersion)
+        {
+            OnPropertyChanged(nameof(HasDetectedVersion));
         }
 
         if (!string.Equals(previous.AvailableVersion, package.AvailableVersion, StringComparison.Ordinal))
@@ -113,6 +128,15 @@ public sealed class PackageRow : ObservableObject
     public string Id => Package.Id;
 
     public string CurrentVersion => Package.CurrentVersionDisplay;
+
+    /// <summary>Legenda da versão instalada ("instalada"); a verificação local é sinalizada pelo indicador de escudo.</summary>
+    public string CurrentVersionCaption => Package.CurrentVersionCaption;
+
+    /// <summary>Texto explicativo da versão apresentada (versão + origem).</summary>
+    public string CurrentVersionToolTip => Package.CurrentVersionToolTip;
+
+    /// <summary>Indica que a versão foi detectada localmente.</summary>
+    public bool HasDetectedVersion => Package.HasDetectedVersion;
 
     public string AvailableVersion => Package.AvailableVersionDisplay;
 

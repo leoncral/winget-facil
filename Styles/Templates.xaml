@@ -73,14 +73,40 @@
                 </Grid>
 
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                    <TextBlock
-                        Text="{Binding CurrentVersion}"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTipService.ToolTip="{Binding CurrentVersion}" />
-                    <TextBlock Text="instalada" Style="{StaticResource CaptionTextStyle}" />
+                    <!-- Versão + indicador de verificação local: o escudo discreto em cor
+                         secundária só aparece quando a versão foi detectada localmente
+                         (HasDetectedVersion). Distinto do ✓ verde de "Em dia" da coluna
+                         Disponível; a coluna Auto colapsa quando ausente, sem layout shift
+                         (a célula não comanda a altura da linha). Acessibilidade: o nome
+                         acessível do TextBlock da versão é o próprio CurrentVersionToolTip
+                         ("versão · origem"), pois FontIcon/IconElement não expõe
+                         AutomationPeer próprio; o escudo é decorativo (Raw) e a informação
+                         chega pelo nome da versão e pelos tooltips. -->
+                    <Grid ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Text="{Binding CurrentVersion}"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                            TextTrimming="CharacterEllipsis"
+                            AutomationProperties.Name="{Binding CurrentVersionToolTip}"
+                            ToolTipService.ToolTip="{Binding CurrentVersionToolTip}" />
+                        <FontIcon
+                            Grid.Column="1"
+                            Glyph="&#xEA18;"
+                            FontSize="11"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{Binding HasDetectedVersion, Converter={StaticResource BoolToVisibility}}"
+                            ToolTipService.ToolTip="{Binding CurrentVersionToolTip}"
+                            AutomationProperties.AccessibilityView="Raw" />
+                    </Grid>
+                    <TextBlock Text="{Binding CurrentVersionCaption}" Style="{StaticResource CaptionTextStyle}" />
                 </StackPanel>
 
                 <Grid Grid.Column="3" VerticalAlignment="Center">

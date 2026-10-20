@@ -67,6 +67,21 @@ O Asa é um cliente fino do `winget.exe`:
   o winget não consegue determinar.
 - A saída tabular é interpretada a partir da posição das colunas no cabeçalho, portanto funciona
   com cabeçalhos localizados (por exemplo, `Nome`, `ID`, `Versão`, `Disponível` e `Origem`).
+- Quando o winget não consegue determinar a versão instalada de um pacote, o Asa tenta confirmá-la
+  localmente, nesta ordem: registro de desinstalação do Windows (`DisplayVersion`), metadados dos
+  executáveis da instalação (`ProductVersion`/`FileVersion`) e chave `App Paths` do registro. Só
+  vale quando existe correspondência de alta confiança: o nome do programa (normalizado — sem
+  acentos, sem caixa e sem sufixos de arquitetura) precisa ser igual ao nome do pacote. Sem isso
+  a versão continua "Desconhecida" e a atualização segue possível com `--include-unknown`.
+- Versões genéricas lidas de metadados de arquivo (0.0.0.0, 1.0.0.0 e afins) não contam como
+  confirmação: a versão continua visível, mas a atualização permanece disponível. Isso vale para
+  todas as fontes de metadados de arquivo (metadados do executável da instalação e executável
+  apontado pela chave `App Paths`); versões vindas do registro de desinstalação são comparadas
+  normalmente.
+- Quando a versão detectada é da mesma release da versão disponível no catálogo, o Asa não oferece
+  uma atualização desnecessária: o pacote sai de Atualizações e aparece como "Em dia", com a
+  versão marcada por um pequeno escudo discreto ao lado. Versão e origem da verificação
+  (arquivo do programa, registro do Windows etc.) aparecem no tooltip da versão.
 - Antes de cada atualização, o Asa usa o Restart Manager do Windows e a pasta real do pacote
   (MSIX ou registro de desinstalação) para descobrir processos, extensões e serviços em uso.
   Quando o instalador não informa a pasta, a busca é feita dinamicamente pelo nome do pacote —
@@ -99,9 +114,14 @@ Helpers/       Utilitários de binding e comandos
   aplicativo, seus serviços ou extensões do Explorer não estão em uso. Se o winget informar
   sucesso mas a atualização continuar na lista, feche o aplicativo, reinicie o Explorer (ou o
   Windows) e tente novamente — o Asa avisa quando a versão não muda.
-- Quando o winget não consegue determinar a versão instalada (por exemplo, Epson Scan 2), o pacote
-  pode continuar aparecendo em Atualizações mesmo depois de atualizado. O Asa usa
-  `--include-unknown` para permitir a atualização e não trata esse caso como falha.
+- Quando o winget não consegue determinar a versão instalada (por exemplo, Epson Scan 2), o Asa
+  tenta confirmar a versão no registro de desinstalação e nos metadados do executável do programa.
+  Se a correspondência não for confiável, a versão continua "Desconhecida", o pacote permanece em
+  Atualizações e a atualização é feita com `--include-unknown` — o Asa não trata esse caso como
+  falha. Quando a versão detectada é da mesma release da versão disponível (por exemplo,
+  `6.7.81.39976` e `6.7.81.0`), o pacote sai de Atualizações e passa a aparecer como "Em dia".
+  Versões genéricas de arquivo (`0.0.0.0`, `1.0.0.0`) são exibidas, mas não dispensam a
+  atualização: nesses casos o pacote continua em Atualizações.
 - Alguns instaladores ainda podem exibir uma janela própria ou pedir permissão do Windows.
 - O winget precisa estar atualizado e com acesso ao catálogo para buscar e atualizar.
 - Projeto independente, sem vínculo com a Microsoft.

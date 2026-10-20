@@ -26,6 +26,28 @@
     <None Remove="Assets\Asa.ico" />
     <Content Include="Assets\Asa.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Asa.ico" CopyToOutputDirectory="PreserveNewest" />
+
+    <None Remove="Assets\Fonts\SpaceGrotesk-SemiBold.ttf" />
+    <Content Include="Assets\Fonts\SpaceGrotesk-SemiBold.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\SpaceGrotesk-Bold.ttf" />
+    <Content Include="Assets\Fonts\SpaceGrotesk-Bold.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\PlusJakartaSans-Regular.ttf" />
+    <Content Include="Assets\Fonts\PlusJakartaSans-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\PlusJakartaSans-Medium.ttf" />
+    <Content Include="Assets\Fonts\PlusJakartaSans-Medium.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\PlusJakartaSans-SemiBold.ttf" />
+    <Content Include="Assets\Fonts\PlusJakartaSans-SemiBold.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\JetBrainsMono-Medium.ttf" />
+    <Content Include="Assets\Fonts\JetBrainsMono-Medium.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\JetBrainsMono-SemiBold.ttf" />
+    <Content Include="Assets\Fonts\JetBrainsMono-SemiBold.ttf" CopyToOutputDirectory="PreserveNewest" />
+
+    <None Remove="Assets\Fonts\LICENSE-SpaceGrotesk.txt" />
+    <Content Include="Assets\Fonts\LICENSE-SpaceGrotesk.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\LICENSE-PlusJakartaSans.txt" />
+    <Content Include="Assets\Fonts\LICENSE-PlusJakartaSans.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Assets\Fonts\LICENSE-JetBrainsMono.txt" />
+    <Content Include="Assets\Fonts\LICENSE-JetBrainsMono.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

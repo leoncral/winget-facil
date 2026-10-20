@@ -26,6 +26,11 @@ public sealed class PackagesViewModel : ObservableObject
         _operations = operations;
         _updatesOnlyMode = updatesOnlyMode;
         _showOnlyUpdates = updatesOnlyMode;
+
+        // Assinatura única por instância (esta classe é criada uma vez no App): as páginas
+        // Instalados e Atualizações compartilham o mesmo OperationCenter e cada ViewModel
+        // reage às mesmas notificações, sem inscrição duplicada.
+        _operations.ItemStateChanged += Operations_ItemStateChanged;
     }
 
     public ObservableCollection<PackageRow> Items { get; } = [];
@@ -291,19 +296,102 @@ public sealed class PackagesViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Traduz o ciclo de vida de um item da fila (notificado pelo OperationCenter com o Id do
+    /// pacote) para o estado da linha correspondente. Busca por Id sem distinção de
+    /// maiúsculas/minúsculas; roda na UI thread, então as notificações da linha são seguras.
+    /// </summary>
+    private void Operations_ItemStateChanged(object? sender, OperationItemEventArgs e)
+    {
+        var state = e.State switch
+        {
+            PackageOperationState.Queued => PackageRowState.Queued,
+            PackageOperationState.Running => PackageRowState.Running,
+            PackageOperationState.Succeeded => PackageRowState.Succeeded,
+            PackageOperationState.Failed => PackageRowState.Failed,
+            // Apenas a linha que estava em execução exibe "Cancelado"; itens que só estavam
+            // na fila (cancelados antes de começar) voltam direto para Idle.
+            PackageOperationState.Canceled => e.CanceledBeforeStart
+                ? PackageRowState.Idle
+                : PackageRowState.Canceled,
+            _ => PackageRowState.Idle
+        };
+
+        var row = _allRows.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, e.PackageId, StringComparison.OrdinalIgnoreCase));
+
+        row?.ApplyOperationState(state, e.Kind == PackageOperationKind.Upgrade, e.Message);
+    }
+
     private void RebuildFromStore()
     {
+        // Guarda a seleção por Id antes de reconstruir: quem continua na lista mantém o
+        // check; quem saiu do winget simplesmente sai da seleção (sem exceção).
+        var selectedIds = _allRows
+            .Where(row => row.IsSelected)
+            .Select(row => row.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Reaproveita as linhas já existentes: só cria linha para Id novo e desanexa as que
+        // desapareceram, para que seleção/estado sobrevivam e a lista não "pisque".
+        var reusableById = new Dictionary<string, PackageRow>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in _allRows)
         {
-            row.PropertyChanged -= Row_PropertyChanged;
+            if (!reusableById.ContainsKey(row.Id))
+            {
+                reusableById[row.Id] = row;
+            }
+        }
+
+        var nextRows = new List<PackageRow>(_store.Installed.Count);
+        var keptRows = new HashSet<PackageRow>();
+        foreach (var package in _store.Installed)
+        {
+            PackageRow row;
+            if (reusableById.TryGetValue(package.Id, out var reusable) && keptRows.Add(reusable))
+            {
+                reusable.UpdatePackage(package);
+                row = reusable;
+            }
+            else
+            {
+                row = new PackageRow(package, RequestUpdate);
+                row.PropertyChanged += Row_PropertyChanged;
+                keptRows.Add(row);
+            }
+
+            nextRows.Add(row);
+        }
+
+        foreach (var row in _allRows)
+        {
+            if (!keptRows.Contains(row))
+            {
+                row.PropertyChanged -= Row_PropertyChanged;
+            }
         }
 
         _allRows.Clear();
-        foreach (var package in _store.Installed)
+        _allRows.AddRange(nextRows);
+
+        // Se um refresh do store acontecer no meio de uma operação, uma linha nova (ou
+        // recriada) para um pacote que continua na fila volta a exibir "Na fila" em vez de
+        // ficar em Idle até a conclusão.
+        foreach (var row in _allRows)
         {
-            var row = new PackageRow(package, RequestUpdate);
-            row.PropertyChanged += Row_PropertyChanged;
-            _allRows.Add(row);
+            if (row.State == PackageRowState.Idle && _operations.Contains(row.Id))
+            {
+                row.ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
+            }
+        }
+
+        foreach (var row in _allRows)
+        {
+            var isSelected = selectedIds.Contains(row.Id);
+            if (row.IsSelected != isSelected)
+            {
+                row.IsSelected = isSelected;
+            }
         }
 
         ErrorMessage = _store.ErrorMessage;
@@ -334,10 +422,30 @@ public sealed class PackagesViewModel : ObservableObject
                 row.Id.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
-        Items.Clear();
-        foreach (var row in filtered)
+        var target = filtered.ToList();
+
+        // Diferença mínima em vez de Clear(): as linhas que continuam no resultado ficam nos
+        // mesmos containers (sem piscar, com rolagem e seleção preservadas).
+        for (var i = Items.Count - 1; i >= 0; i--)
         {
-            Items.Add(row);
+            if (!target.Contains(Items[i]))
+            {
+                Items.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < target.Count; i++)
+        {
+            var row = target[i];
+            var index = Items.IndexOf(row);
+            if (index < 0)
+            {
+                Items.Insert(i, row);
+            }
+            else if (index != i)
+            {
+                Items.Move(index, i);
+            }
         }
 
         UpdateSelectionState();

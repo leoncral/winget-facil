@@ -154,6 +154,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Grid VerticalAlignment="Center">
@@ -183,16 +184,27 @@
                         TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
+                <!-- TODO(Fase R / R-1): estética do botão Cancelar (seguir o padrão visual
+                     da barra de atividade; hoje herda o estilo padrão de Button). -->
+                <Button
+                    x:Name="ActivityCancelButton"
+                    Grid.Column="2"
+                    Content="Cancelar"
+                    Padding="10,4"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed"
+                    AutomationProperties.Name="Cancelar operação"
+                    Click="ActivityCancel_Click" />
                 <HyperlinkButton
                     x:Name="ActivityLogButton"
-                    Grid.Column="2"
+                    Grid.Column="3"
                     Content="Detalhes"
                     Padding="8,4"
                     VerticalAlignment="Center"
                     Click="ActivityLog_Click" />
                 <Button
                     x:Name="ActivityCloseButton"
-                    Grid.Column="3"
+                    Grid.Column="4"
                     Width="28"
                     Height="28"
                     Padding="0"

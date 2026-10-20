@@ -16,7 +16,9 @@
                     <ColumnDefinition Width="*" MinWidth="180" />
                     <ColumnDefinition Width="110" />
                     <ColumnDefinition Width="120" />
-                    <ColumnDefinition Width="36" />
+                    <!-- Célula de ação de largura fixa: comporta o botão (32px) e o indicador
+                         da fila (glifo/texto), garantindo zero layout shift entre estados. -->
+                    <ColumnDefinition Width="100" />
                 </Grid.ColumnDefinitions>
 
                 <CheckBox
@@ -107,15 +109,118 @@
                     </StackPanel>
                 </Grid>
 
-                <Button
-                    Grid.Column="4"
-                    Command="{Binding UpdateCommand}"
-                    Style="{StaticResource ActionIconButtonStyle}"
-                    Visibility="{Binding CanUpdate, Converter={StaticResource BoolToVisibility}}"
-                    ToolTipService.ToolTip="{Binding ActionToolTip}"
-                    AutomationProperties.Name="Atualizar agora">
-                    <FontIcon Glyph="&#xE895;" FontSize="14" />
-                </Button>
+                <!--
+                    Coluna de ação: o botão e o indicador da fila são sobrepostos na MESMA
+                    célula (largura fixa de 100, altura de 32 centrada) e apenas um fica
+                    visível por vez — a altura/posição da linha não muda em nenhum estado.
+                    TODO(Fase R / R-3, R-4): aplicar tokens visuais deste indicador
+                -->
+                <Grid Grid.Column="4" VerticalAlignment="Center">
+                    <Button
+                        Command="{Binding UpdateCommand}"
+                        Style="{StaticResource ActionIconButtonStyle}"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowActionButton, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding ActionToolTip}"
+                        AutomationProperties.Name="Atualizar agora">
+                        <FontIcon Glyph="&#xE895;" FontSize="14" />
+                    </Button>
+
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowQueueIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <TextBlock
+                            Text="{Binding StateText}"
+                            Style="{StaticResource CaptionTextStyle}"
+                            MaxWidth="96"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowRunningIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <ProgressRing
+                            Width="14"
+                            Height="14"
+                            IsActive="{Binding ShowRunningIndicator, Mode=OneWay}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            Text="{Binding StateText}"
+                            Style="{StaticResource CaptionTextStyle}"
+                            MaxWidth="80"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowSucceededIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <FontIcon
+                            Glyph="&#xE73E;"
+                            FontSize="14"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowFailedIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateMessage}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <FontIcon
+                            Glyph="&#xE783;"
+                            FontSize="14"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource ErrorStatusForegroundBrush}" />
+                    </StackPanel>
+
+                    <!-- Cancelado: glifo neutro (não é o ✗ vermelho de falha).
+                         TODO(Fase R / R-3, R-4): aplicar tokens visuais deste indicador -->
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowCanceledIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <FontIcon
+                            Glyph="&#xE711;"
+                            FontSize="12"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock
+                            Text="{Binding StateText}"
+                            Style="{StaticResource CaptionTextStyle}"
+                            MaxWidth="80"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
     </DataTemplate>

@@ -7,6 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Background="Transparent"
+    NavigationCacheMode="Required"
     Loaded="Page_Loaded"
     Unloaded="Page_Unloaded">
 
@@ -127,7 +128,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="110" />
                                 <ColumnDefinition Width="120" />
-                                <ColumnDefinition Width="36" />
+                                <!-- Mesma largura fixa da coluna de ação da linha (botão + indicador). -->
+                                <ColumnDefinition Width="100" />
                             </Grid.ColumnDefinitions>
 
                             <CheckBox

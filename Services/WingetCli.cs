@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -30,7 +31,13 @@ public sealed class WingetCliException : Exception
 public sealed partial class WingetCli
 {
     private const int MaxSearchResults = 40;
+
+    /// <summary>Espera máxima após um Kill antes de desistir (não prende o chamador para sempre).</summary>
+    private static readonly TimeSpan ProcessKillTimeout = TimeSpan.FromSeconds(5);
+
     private readonly string? _executablePath;
+    private readonly object _processGate = new();
+    private Process? _currentProcess;
 
     public WingetCli()
     {
@@ -237,6 +244,64 @@ public sealed partial class WingetCli
             : UpgradeAsync(operation, silent, onOutput, cancellationToken);
     }
 
+    /// <summary>
+    /// Encerra imediatamente o winget em execução lançado por esta instância, se houver,
+    /// incluindo a árvore de processos filhos (instaladores iniciados por ele). A espera
+    /// após o kill é limitada para não prender o chamador. Retorna false quando não há
+    /// processo a encerrar ou quando ele já havia finalizado.
+    /// </summary>
+    public async Task<bool> KillCurrentProcessAsync()
+    {
+        Process? process;
+        lock (_processGate)
+        {
+            process = _currentProcess;
+        }
+
+        if (process is null)
+        {
+            return false;
+        }
+
+        return await KillProcessTreeAsync(process).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Encerra o processo (e os filhos) com tratamento para "já finalizado" e espera limitada.
+    /// </summary>
+    private static async Task<bool> KillProcessTreeAsync(Process process)
+    {
+        var killed = false;
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                killed = true;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // O processo finalizou exatamente agora.
+        }
+        catch (Win32Exception)
+        {
+            // Sem permissão para encerrar; a espera abaixo ainda respeita o limite.
+        }
+
+        try
+        {
+            // Espera limitada: se o kill falhar (ex.: acesso negado), o chamador não fica preso.
+            await process.WaitForExitAsync().WaitAsync(ProcessKillTimeout).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is TimeoutException or InvalidOperationException or ObjectDisposedException)
+        {
+            // Timeout ou processo já removido: seguimos sem ele.
+        }
+
+        return killed;
+    }
+
     public static string DescribeFailure(string action, WingetCommandResult result)
     {
         if (result.WasCanceled)
@@ -355,36 +420,39 @@ public sealed partial class WingetCli
         var errorTask = PumpAsync(process.StandardError, error, null, cancellationToken);
         var wasCanceled = false;
 
+        // Torna o processo alcançável para CancelCurrentAsync (cancelar a operação em andamento).
+        lock (_processGate)
+        {
+            _currentProcess = process;
+        }
+
         try
         {
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                wasCanceled = true;
+                await KillProcessTreeAsync(process).ConfigureAwait(false);
+            }
+
+            await Task.WhenAll(outputTask, errorTask).ConfigureAwait(false);
+
+            var exitCode = wasCanceled ? -1 : process.ExitCode;
+            return new WingetCommandResult(exitCode, output.ToString(), error.ToString(), wasCanceled, commandLine);
         }
-        catch (OperationCanceledException)
+        finally
         {
-            wasCanceled = true;
-            try
+            lock (_processGate)
             {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // The process may already have exited.
-            }
-
-            try
-            {
-                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch
-            {
-                // Nothing else to do if the process no longer exists.
+                if (ReferenceEquals(_currentProcess, process))
+                {
+                    _currentProcess = null;
+                }
             }
         }
-
-        await Task.WhenAll(outputTask, errorTask).ConfigureAwait(false);
-
-        var exitCode = wasCanceled ? -1 : process.ExitCode;
-        return new WingetCommandResult(exitCode, output.ToString(), error.ToString(), wasCanceled, commandLine);
     }
 
     private static async Task PumpAsync(

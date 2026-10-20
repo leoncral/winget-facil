@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private static readonly SolidColorBrush CriticalBrush = new(Color.FromArgb(255, 196, 43, 28));
     private static readonly SolidColorBrush CautionBrush = new(Color.FromArgb(255, 157, 93, 0));
     private readonly DispatcherTimer _activityHideTimer;
+    private bool _cancelFlowOpen;
     private bool _initialized;
 
     public MainWindow()
@@ -288,8 +289,14 @@ public sealed partial class MainWindow : Window
                 ? CautionBrush
                 : SuccessBrush;
         ActivityCloseButton.Visibility = operations.IsBusy ? Visibility.Collapsed : Visibility.Visible;
+        ActivityCancelButton.Visibility = operations.IsBusy ? Visibility.Visible : Visibility.Collapsed;
 
-        if (operations.IsBusy || operations.HasError || operations.HasWarning)
+        // Auto-ocultação no tempo padrão: erros e avisos permanecem (ex.: "atualização não
+        // confirmada"), mas um cancelamento é transitório como o sucesso.
+        var canAutoHide = !operations.HasError &&
+                          (!operations.HasWarning || operations.IsCanceledActivity);
+
+        if (operations.IsBusy || !canAutoHide)
         {
             _activityHideTimer.Stop();
         }
@@ -312,6 +319,58 @@ public sealed partial class MainWindow : Window
     {
         _activityHideTimer.Stop();
         App.Operations.DismissActivity();
+    }
+
+    private async void ActivityCancel_Click(object sender, RoutedEventArgs e)
+    {
+        var operations = App.Operations;
+
+        // Ocioso, já cancelando ou já cancelado: nada a fazer (clique duplo incluído).
+        if (!operations.IsBusy || _cancelFlowOpen)
+        {
+            return;
+        }
+
+        _cancelFlowOpen = true;
+        ActivityCancelButton.IsEnabled = false;
+        try
+        {
+            // Confirma só quando há mais de 1 item envolvido (em execução + na fila).
+            var pending = operations.PendingCount;
+            if (pending > 1)
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = RootGrid.XamlRoot,
+                    Title = "Cancelar a operação?",
+                    Content = new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Text = "Interromper no meio de um instalador pode deixar o aplicativo " +
+                               "em estado parcial. " +
+                               (pending - 1 == 1
+                                   ? "O item ainda na fila não será executado."
+                                   : $"Os {pending - 1} itens ainda na fila não serão executados.")
+                    },
+                    PrimaryButtonText = "Cancelar operação",
+                    CloseButtonText = "Continuar",
+                    DefaultButton = ContentDialogButton.Close
+                };
+
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+            }
+
+            _activityHideTimer.Stop();
+            await operations.CancelCurrentAsync();
+        }
+        finally
+        {
+            ActivityCancelButton.IsEnabled = true;
+            _cancelFlowOpen = false;
+        }
     }
 
     private async void ActivityLog_Click(object sender, RoutedEventArgs e)

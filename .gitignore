@@ -7,3 +7,7 @@ publish-*/
 *.user
 *.suo
 *.log
+
+# Referências locais de design e planejamento (não versionar)
+visual-update/
+plano.md

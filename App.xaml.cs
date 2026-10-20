@@ -1,4 +1,5 @@
 using Asa.Services;
+using Asa.ViewModels;
 using Microsoft.UI.Xaml;
 
 namespace Asa;
@@ -12,6 +13,12 @@ public partial class App : Application
     public static PackageStore Packages { get; } = new(Winget);
 
     public static OperationCenter Operations { get; } = new(Winget, Settings);
+
+    // Escopo único: as páginas de lista compartilham estas instâncias para que seleção,
+    // filtro e linhas sobrevivam a navegações (em vez de criar um ViewModel por página).
+    public PackagesViewModel InstalledPackages { get; } = new(Packages, Operations, updatesOnlyMode: false);
+
+    public PackagesViewModel UpdatesPackages { get; } = new(Packages, Operations, updatesOnlyMode: true);
 
     private Window? _window;
 

@@ -18,7 +18,60 @@ public sealed class PackageRow : ObservableObject
             _ => CanUpdate && !IsQueued);
     }
 
-    public InstalledPackage Package { get; }
+    public InstalledPackage Package { get; private set; }
+
+    /// <summary>
+    /// Substitui o pacote subjacente reaproveitando a mesma linha: só dispara as propriedades
+    /// que realmente mudaram, preservando seleção/estado de fila e evitando repintar a lista.
+    /// </summary>
+    public void UpdatePackage(InstalledPackage package)
+    {
+        if (ReferenceEquals(Package, package))
+        {
+            return;
+        }
+
+        var previous = Package;
+        Package = package;
+
+        if (!string.Equals(previous.Name, package.Name, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(Initial));
+        }
+
+        if (!string.Equals(previous.Id, package.Id, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(Id));
+        }
+
+        if (!string.Equals(previous.Version, package.Version, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(CurrentVersion));
+        }
+
+        if (!string.Equals(previous.AvailableVersion, package.AvailableVersion, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(AvailableVersion));
+        }
+
+        if (!string.Equals(previous.Source, package.Source, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(SourceLabel));
+        }
+
+        if (previous.HasUpdate != package.HasUpdate)
+        {
+            OnPropertyChanged(nameof(HasUpdate));
+        }
+
+        if (previous.CanUpdate != package.CanUpdate)
+        {
+            OnPropertyChanged(nameof(CanUpdate));
+            OnPropertyChanged(nameof(ShowInSync));
+            UpdateCommand.NotifyCanExecuteChanged();
+        }
+    }
 
     public string Name => Package.Name;
 

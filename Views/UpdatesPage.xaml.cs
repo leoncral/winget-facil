@@ -11,7 +11,8 @@ public sealed partial class UpdatesPage : Page
 
     public UpdatesPage()
     {
-        ViewModel = new PackagesViewModel(App.Packages, App.Operations, updatesOnlyMode: true);
+        // ViewModel de escopo único, criado uma vez no App e compartilhado entre navegações.
+        ViewModel = ((App)Application.Current).UpdatesPackages;
         InitializeComponent();
     }
 
@@ -23,6 +24,12 @@ public sealed partial class UpdatesPage : Page
         {
             App.Packages.Changed += Packages_Changed;
             _subscribed = true;
+        }
+
+        // Reaplica na UI o filtro que vive no ViewModel compartilhado.
+        if (!string.Equals(FilterBox.Text, ViewModel.SearchText, StringComparison.Ordinal))
+        {
+            FilterBox.Text = ViewModel.SearchText;
         }
 
         await ViewModel.LoadAsync();

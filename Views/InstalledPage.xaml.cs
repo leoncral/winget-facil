@@ -9,11 +9,11 @@ namespace Asa.Views;
 public sealed partial class InstalledPage : Page
 {
     private bool _subscribed;
-    private bool _initialized;
 
     public InstalledPage()
     {
-        ViewModel = new PackagesViewModel(App.Packages, App.Operations, updatesOnlyMode: false);
+        // ViewModel de escopo único, criado uma vez no App e compartilhado entre navegações.
+        ViewModel = ((App)Application.Current).InstalledPackages;
         InitializeComponent();
     }
 
@@ -27,10 +27,11 @@ public sealed partial class InstalledPage : Page
             _subscribed = true;
         }
 
-        if (!_initialized)
+        // Reaplica na UI o filtro que vive no ViewModel compartilhado.
+        FilterBar.SelectedItem = ViewModel.ShowOnlyUpdates ? UpdatesFilter : AllFilter;
+        if (!string.Equals(FilterBox.Text, ViewModel.SearchText, StringComparison.Ordinal))
         {
-            _initialized = true;
-            FilterBar.SelectedItem = AllFilter;
+            FilterBox.Text = ViewModel.SearchText;
         }
 
         await ViewModel.LoadAsync();

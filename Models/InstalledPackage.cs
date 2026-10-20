@@ -16,6 +16,11 @@ public sealed class InstalledPackage
 
     public bool CanUpdate => HasUpdate && !string.IsNullOrWhiteSpace(Source);
 
+    public bool HasUnknownVersion =>
+        string.IsNullOrWhiteSpace(Version) ||
+        string.Equals(Version, "Unknown", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Version, "Desconhecida", StringComparison.OrdinalIgnoreCase);
+
     public string CurrentVersionDisplay => WingetDisplay.Version(Version);
 
     public string AvailableVersionDisplay => WingetDisplay.Version(AvailableVersion);

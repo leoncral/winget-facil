@@ -60,6 +60,8 @@ O Asa é um cliente fino do `winget.exe`:
 - A busca usa `winget search --query <termo> --count 40`.
 - Instalações e atualizações usam `--id`, `--exact`, `--accept-package-agreements`,
   `--accept-source-agreements` e `--disable-interactivity` (além de `--silent` quando ativado).
+  Atualizações também usam `--include-unknown`, necessário para pacotes cuja versão instalada
+  o winget não consegue determinar.
 - A saída tabular é interpretada a partir da posição das colunas no cabeçalho, portanto funciona
   com cabeçalhos localizados (por exemplo, `Nome`, `ID`, `Versão`, `Disponível` e `Origem`).
 
@@ -87,6 +89,9 @@ Helpers/       Utilitários de binding e comandos
   aplicativo, seus serviços ou extensões do Explorer não estão em uso. Se o winget informar
   sucesso mas a atualização continuar na lista, feche o aplicativo, reinicie o Explorer (ou o
   Windows) e tente novamente — o Asa avisa quando a versão não muda.
+- Quando o winget não consegue determinar a versão instalada (por exemplo, Epson Scan 2), o pacote
+  pode continuar aparecendo em Atualizações mesmo depois de atualizado. O Asa usa
+  `--include-unknown` para permitir a atualização e não trata esse caso como falha.
 - Alguns instaladores ainda podem exibir uma janela própria ou pedir permissão do Windows.
 - O winget precisa estar atualizado e com acesso ao catálogo para buscar e atualizar.
 - Projeto independente, sem vínculo com a Microsoft.

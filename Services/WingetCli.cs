@@ -219,6 +219,7 @@ public sealed partial class WingetCli
             "--id",
             operation.Id,
             "--exact",
+            "--include-unknown",
             "--accept-package-agreements",
             "--accept-source-agreements",
             "--disable-interactivity"

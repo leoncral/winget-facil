@@ -196,6 +196,30 @@
                             VerticalAlignment="Center"
                             Foreground="{StaticResource ErrorStatusForegroundBrush}" />
                     </StackPanel>
+
+                    <!-- Cancelado: glifo neutro (não é o ✗ vermelho de falha).
+                         TODO(Fase R / R-3, R-4): aplicar tokens visuais deste indicador -->
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowCanceledIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <FontIcon
+                            Glyph="&#xE711;"
+                            FontSize="12"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock
+                            Text="{Binding StateText}"
+                            Style="{StaticResource CaptionTextStyle}"
+                            MaxWidth="80"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
                 </Grid>
             </Grid>
         </Border>

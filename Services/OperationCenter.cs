@@ -17,6 +17,10 @@ public sealed partial class OperationCenter : ObservableObject
     private readonly List<string> _log = [];
     private readonly object _logLock = new();
     private PackageOperation? _current;
+    private CancellationTokenSource? _operationCts;
+    private bool _cancelRequested;
+    private bool _isCanceling;
+    private bool _isCanceledActivity;
     private DateTimeOffset _lastStatusUpdate;
     private bool _isBusy;
     private bool _isActivityVisible;
@@ -58,6 +62,16 @@ public sealed partial class OperationCenter : ObservableObject
     {
         get => _hasWarning;
         private set => SetProperty(ref _hasWarning, value);
+    }
+
+    /// <summary>
+    /// True quando a atividade exibida é um cancelamento (e não um aviso permanente):
+    /// permite que a janela auto-oculte a barra mesmo usando o brush de atenção âmbar.
+    /// </summary>
+    public bool IsCanceledActivity
+    {
+        get => _isCanceledActivity;
+        private set => SetProperty(ref _isCanceledActivity, value);
     }
 
     public string ActivityTitle
@@ -140,6 +154,61 @@ public sealed partial class OperationCenter : ObservableObject
     }
 
     /// <summary>
+    /// Interrompe a operação em andamento: encerra o processo do winget atual (e sua árvore
+    /// de processos filhos) e descarta todos os itens ainda na fila, que não serão executados.
+    /// A operação corrente passa a <see cref="PackageOperationState.Canceled"/> (não é uma
+    /// falha) e o laço <see cref="ProcessQueueAsync"/> termina sem partir para o próximo item.
+    /// No-op seguro quando não há nada em execução (inclusive em cliques duplicados).
+    /// </summary>
+    public async Task CancelCurrentAsync()
+    {
+        if (!IsBusy || _isCanceling || _cancelRequested)
+        {
+            return;
+        }
+
+        _isCanceling = true;
+        try
+        {
+            // Precisa ser sinalizado antes do kill: quando o laço acordar, ele já trata o
+            // resultado da operação corrente como cancelada (nunca como falha comum).
+            _cancelRequested = true;
+
+            // Itens que ainda não começaram nunca serão executados: voltam direto para Idle.
+            while (_queue.Count > 0)
+            {
+                var pending = _queue.Dequeue();
+                RaiseItemState(pending, PackageOperationState.Canceled, string.Empty, canceledBeforeStart: true);
+            }
+
+            // Encerra a árvore de processos do winget em execução (com espera limitada).
+            await _winget.KillCurrentProcessAsync().ConfigureAwait(true);
+
+            // Acorda o WaitForExitAsync e os leitores de saída do WingetCli, se ainda ativos.
+            try
+            {
+                _operationCts?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // O processo terminou exatamente agora; o próprio laço finaliza o item.
+            }
+
+            if (_current is not null)
+            {
+                AddLog(string.Empty);
+                AddLog($"Comando interrompido: {_current.ActionLabel} {_current.Name} · {_current.Id}");
+            }
+
+            AddLog("Operação cancelada pelo usuário.");
+        }
+        finally
+        {
+            _isCanceling = false;
+        }
+    }
+
+    /// <summary>
     /// Called after a batch when winget reported success but the packages still show an update.
     /// </summary>
     public void ReportStaleUpgrades(IReadOnlyList<string> packageNames)
@@ -149,6 +218,9 @@ public sealed partial class OperationCenter : ObservableObject
             return;
         }
 
+        // Um aviso de "atualização não confirmada" é permanente (não auto-oculta como o
+        // cancelamento), então o estado de cancelamento não deve valer aqui.
+        IsCanceledActivity = false;
         HasWarning = true;
         IsActivityVisible = true;
 
@@ -220,6 +292,8 @@ public sealed partial class OperationCenter : ObservableObject
         _completedUpgrades.Clear();
         HasError = false;
         HasWarning = false;
+        IsCanceledActivity = false;
+        _cancelRequested = false;
 
         lock (_logLock)
         {
@@ -242,6 +316,10 @@ public sealed partial class OperationCenter : ObservableObject
 
         IsBusy = true;
 
+        // True quando a ÚLTIMA operação finalizada foi interrompida pelo usuário: a barra de
+        // atividade mostra "Cancelado" em vez do resumo comum de concluído/falhou.
+        var lastFinalizedCanceled = false;
+
         while (_queue.Count > 0)
         {
             var operation = _queue.Dequeue();
@@ -259,23 +337,45 @@ public sealed partial class OperationCenter : ObservableObject
             AddLog(string.Empty);
             AddLog($"── {operation.ActionLabel} {operation.Name} · {operation.Id} ──");
 
+            // Um CancellationTokenSource por item: cancelCurrentAsync cancela apenas a
+            // execução em curso, sem afetar operações futuras enfileiradas depois.
+            var operationCts = new CancellationTokenSource();
+            _operationCts = operationCts;
+
             WingetCommandResult result;
             try
             {
                 result = await _winget.ExecuteOperationAsync(
                     operation,
                     _settings.SilentInstall,
-                    line => HandleOutputLine(operation, line));
+                    line => HandleOutputLine(operation, line),
+                    operationCts.Token);
             }
             catch (Exception exception)
             {
                 result = new WingetCommandResult(-1, string.Empty, exception.Message, false, string.Empty);
             }
+            finally
+            {
+                if (ReferenceEquals(_operationCts, operationCts))
+                {
+                    _operationCts = null;
+                }
+
+                operationCts.Dispose();
+            }
+
+            // Consome o pedido de cancelamento deste item: um pedido novo durante o lote
+            // seguinte volta a valer para a próxima execução.
+            var wasCanceled = _cancelRequested;
+            _cancelRequested = false;
 
             _batchDone++;
 
             if (result.IsSuccess)
             {
+                // Corrida com o cancelamento: o winget terminou com sucesso antes do kill,
+                // então o item é concluído — nunca "cancelado".
                 _batchSucceeded++;
                 if (operation.Kind == PackageOperationKind.Upgrade)
                 {
@@ -284,6 +384,12 @@ public sealed partial class OperationCenter : ObservableObject
 
                 AddLog($"Concluído (código 0).");
                 RaiseItemState(operation, PackageOperationState.Succeeded, string.Empty);
+            }
+            else if (wasCanceled || result.WasCanceled)
+            {
+                // Cancelado pelo usuário: não é falha e não conta no resumo de erros.
+                lastFinalizedCanceled = true;
+                RaiseItemState(operation, PackageOperationState.Canceled, string.Empty);
             }
             else
             {
@@ -305,7 +411,30 @@ public sealed partial class OperationCenter : ObservableObject
 
         _current = null;
         IsBusy = false;
-        CompleteBatch();
+
+        if (lastFinalizedCanceled)
+        {
+            CompleteCanceledBatch();
+        }
+        else
+        {
+            CompleteBatch();
+        }
+    }
+
+    /// <summary>
+    /// Finaliza um lote interrompido pelo usuário: mostra "Cancelado" na barra de atividade
+    /// usando o brush de atenção âmbar (o mesmo dos avisos) e permite a auto-ocultação.
+    /// </summary>
+    private void CompleteCanceledBatch()
+    {
+        HasError = false;
+        IsCanceledActivity = true;
+        HasWarning = true;
+        ActivityTitle = "Cancelado";
+        ActivityDetail = "A operação foi cancelada pelo usuário.";
+        IsActivityVisible = true;
+        QueueCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     private void CompleteBatch()
@@ -339,13 +468,17 @@ public sealed partial class OperationCenter : ObservableObject
     /// Publica o estado de um item da fila na UI thread (os await da fila podem retornar
     /// fora dela) para que as linhas correspondentes sejam atualizadas com segurança.
     /// </summary>
-    private void RaiseItemState(PackageOperation operation, PackageOperationState state, string message)
+    private void RaiseItemState(
+        PackageOperation operation,
+        PackageOperationState state,
+        string message,
+        bool canceledBeforeStart = false)
     {
         void Raise()
         {
             ItemStateChanged?.Invoke(
                 this,
-                new OperationItemEventArgs(operation.Id, state, operation.Kind, message));
+                new OperationItemEventArgs(operation.Id, state, operation.Kind, message, canceledBeforeStart));
         }
 
         if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
@@ -444,7 +577,10 @@ public enum PackageOperationState
     Queued,
     Running,
     Succeeded,
-    Failed
+    Failed,
+
+    /// <summary>Interrompido pelo usuário (cancelamento), não uma falha do winget.</summary>
+    Canceled
 }
 
 /// <summary>
@@ -453,12 +589,18 @@ public enum PackageOperationState
 /// </summary>
 public sealed class OperationItemEventArgs : EventArgs
 {
-    public OperationItemEventArgs(string packageId, PackageOperationState state, PackageOperationKind kind, string message)
+    public OperationItemEventArgs(
+        string packageId,
+        PackageOperationState state,
+        PackageOperationKind kind,
+        string message,
+        bool canceledBeforeStart = false)
     {
         PackageId = packageId;
         State = state;
         Kind = kind;
         Message = message;
+        CanceledBeforeStart = canceledBeforeStart;
     }
 
     /// <summary>Id do pacote (winget), usado para casar com a linha exibida.</summary>
@@ -471,4 +613,10 @@ public sealed class OperationItemEventArgs : EventArgs
 
     /// <summary>Mensagem de falha (vazia nos demais estados).</summary>
     public string Message { get; }
+
+    /// <summary>
+    /// True quando o item foi cancelado ainda na fila (nunca começou): a linha correspondente
+    /// volta direto para Idle em vez de exibir "Cancelado".
+    /// </summary>
+    public bool CanceledBeforeStart { get; }
 }

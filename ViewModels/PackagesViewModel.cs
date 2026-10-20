@@ -309,6 +309,11 @@ public sealed class PackagesViewModel : ObservableObject
             PackageOperationState.Running => PackageRowState.Running,
             PackageOperationState.Succeeded => PackageRowState.Succeeded,
             PackageOperationState.Failed => PackageRowState.Failed,
+            // Apenas a linha que estava em execução exibe "Cancelado"; itens que só estavam
+            // na fila (cancelados antes de começar) voltam direto para Idle.
+            PackageOperationState.Canceled => e.CanceledBeforeStart
+                ? PackageRowState.Idle
+                : PackageRowState.Canceled,
             _ => PackageRowState.Idle
         };
 

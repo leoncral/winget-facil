@@ -14,7 +14,10 @@ public enum PackageRowState
     Queued,
     Running,
     Succeeded,
-    Failed
+    Failed,
+
+    /// <summary>Operação interrompida pelo usuário (não é falha do winget).</summary>
+    Canceled
 }
 
 public sealed class PackageRow : ObservableObject
@@ -26,8 +29,8 @@ public sealed class PackageRow : ObservableObject
     /// </summary>
     private static readonly TimeSpan MinimumQueuedDisplay = TimeSpan.FromMilliseconds(400);
 
-    /// <summary>Tempo em que o check "Concluído" fica visível antes de voltar para Idle.</summary>
-    private static readonly TimeSpan SucceededDisplay = TimeSpan.FromSeconds(3);
+    /// <summary>Tempo em que "Concluído"/"Cancelado" fica visível antes de voltar para Idle.</summary>
+    private static readonly TimeSpan TransientStateDisplay = TimeSpan.FromSeconds(3);
 
     private readonly Action<PackageRow> _requestUpdate;
     private bool _isSelected;
@@ -194,6 +197,7 @@ public sealed class PackageRow : ObservableObject
         PackageRowState.Running => _isUpgradeOperation ? "Atualizando…" : "Instalando…",
         PackageRowState.Succeeded => "Concluído",
         PackageRowState.Failed => "Falhou",
+        PackageRowState.Canceled => "Cancelado",
         _ => string.Empty
     };
 
@@ -207,6 +211,7 @@ public sealed class PackageRow : ObservableObject
         PackageRowState.Running => _isUpgradeOperation ? "atualizando" : "instalando",
         PackageRowState.Succeeded => "concluído",
         PackageRowState.Failed => "falhou",
+        PackageRowState.Canceled => "cancelado",
         _ => string.Empty
     };
 
@@ -222,6 +227,8 @@ public sealed class PackageRow : ObservableObject
     public bool ShowSucceededIndicator => State == PackageRowState.Succeeded;
 
     public bool ShowFailedIndicator => State == PackageRowState.Failed;
+
+    public bool ShowCanceledIndicator => State == PackageRowState.Canceled;
 
     /// <summary>
     /// Aplica um estado reportado pelo <c>OperationCenter.ItemStateChanged</c>
@@ -289,24 +296,26 @@ public sealed class PackageRow : ObservableObject
         // oculto pelo indicador e o comando continua desabilitado (IsQueued => CanExecute false).
         IsQueued = state is PackageRowState.Queued or PackageRowState.Running;
 
-        if (state == PackageRowState.Succeeded)
+        if (state is PackageRowState.Succeeded or PackageRowState.Canceled)
         {
+            // "Concluído"/"Cancelado" ficam ~3 s visíveis e a linha volta para Idle
+            // (o botão de ação reaparece, permitindo nova tentativa imediata).
             _ = ReturnToIdleAfterAsync(version);
         }
     }
 
     private async Task ReturnToIdleAfterAsync(int version)
     {
-        await Task.Delay(SucceededDisplay);
+        await Task.Delay(TransientStateDisplay);
 
-        if (version != _stateVersion || State != PackageRowState.Succeeded)
+        if (version != _stateVersion || !IsTransientResultState(State))
         {
             return;
         }
 
         void Reset()
         {
-            if (version != _stateVersion || State != PackageRowState.Succeeded)
+            if (version != _stateVersion || !IsTransientResultState(State))
             {
                 return;
             }
@@ -325,6 +334,11 @@ public sealed class PackageRow : ObservableObject
         }
     }
 
+    private static bool IsTransientResultState(PackageRowState state)
+    {
+        return state is PackageRowState.Succeeded or PackageRowState.Canceled;
+    }
+
     private void NotifyStateDependentProperties()
     {
         OnPropertyChanged(nameof(StateText));
@@ -335,6 +349,7 @@ public sealed class PackageRow : ObservableObject
         OnPropertyChanged(nameof(ShowRunningIndicator));
         OnPropertyChanged(nameof(ShowSucceededIndicator));
         OnPropertyChanged(nameof(ShowFailedIndicator));
+        OnPropertyChanged(nameof(ShowCanceledIndicator));
         UpdateCommand.NotifyCanExecuteChanged();
     }
 }

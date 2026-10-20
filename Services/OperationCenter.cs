@@ -11,6 +11,7 @@ public sealed partial class OperationCenter : ObservableObject
     private static readonly TimeSpan StatusThrottle = TimeSpan.FromMilliseconds(220);
     private readonly WingetCli _winget;
     private readonly SettingsStore _settings;
+    private readonly RunningAppGuard _runningApps;
     private readonly DispatcherQueue? _dispatcherQueue;
     private readonly Queue<PackageOperation> _queue = new();
     private readonly List<PackageOperation> _completedUpgrades = [];
@@ -32,11 +33,13 @@ public sealed partial class OperationCenter : ObservableObject
     private int _batchDone;
     private int _batchSucceeded;
     private int _batchFailed;
+    private int _batchSkipped;
 
-    public OperationCenter(WingetCli winget, SettingsStore settings)
+    public OperationCenter(WingetCli winget, SettingsStore settings, RunningAppGuard runningApps)
     {
         _winget = winget;
         _settings = settings;
+        _runningApps = runningApps;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
     }
 
@@ -90,6 +93,12 @@ public sealed partial class OperationCenter : ObservableObject
 
     /// <summary>Upgrades that the winget reported as successful in the current batch.</summary>
     public IReadOnlyList<PackageOperation> CompletedUpgrades => _completedUpgrades;
+
+    /// <summary>
+    /// Shows the permission dialog for closing a package that is currently in use.
+    /// Returns true when the update may proceed.
+    /// </summary>
+    public Func<RunningAppUsage, Task<bool>>? ConfirmCloseRunningApp { get; set; }
 
     public event EventHandler? QueueCompleted;
 
@@ -289,6 +298,7 @@ public sealed partial class OperationCenter : ObservableObject
         _batchDone = 0;
         _batchSucceeded = 0;
         _batchFailed = 0;
+        _batchSkipped = 0;
         _completedUpgrades.Clear();
         HasError = false;
         HasWarning = false;
@@ -337,26 +347,152 @@ public sealed partial class OperationCenter : ObservableObject
             AddLog(string.Empty);
             AddLog($"── {operation.ActionLabel} {operation.Name} · {operation.Id} ──");
 
+            var stoppedServices = new List<string>();
+            var explorerClosed = false;
+            var skipped = false;
+
             // Um CancellationTokenSource por item: cancelCurrentAsync cancela apenas a
             // execução em curso, sem afetar operações futuras enfileiradas depois.
             var operationCts = new CancellationTokenSource();
             _operationCts = operationCts;
 
-            WingetCommandResult result;
+            WingetCommandResult? result = null;
             try
             {
-                result = await _winget.ExecuteOperationAsync(
-                    operation,
-                    _settings.SilentInstall,
-                    line => HandleOutputLine(operation, line),
-                    operationCts.Token);
-            }
-            catch (Exception exception)
-            {
-                result = new WingetCommandResult(-1, string.Empty, exception.Message, false, string.Empty);
+                if (operation.Kind == PackageOperationKind.Upgrade)
+                {
+                    RunningAppUsage? usage = null;
+                    try
+                    {
+                        usage = await _runningApps.DetectAsync(operation.Name, operation.Id);
+                    }
+                    catch (Exception exception)
+                    {
+                        AddLog($"Não foi possível verificar aplicativos em execução: {exception.Message}");
+                    }
+
+                    if (usage is { HasBlockers: true })
+                    {
+                        AddLog($"Em execução: {DescribeBlockers(usage)}.");
+
+                        if (usage.HasCriticalProcesses)
+                        {
+                            skipped = true;
+                            AddLog("Atualização ignorada: um processo crítico do Windows usa este pacote.");
+                        }
+                        else
+                        {
+                            ActivityTitle = $"Aguardando confirmação — {operation.Name}";
+                            ActivityDetail = "O aplicativo está aberto e precisa ser fechado.";
+
+                            var approved = false;
+                            if (ConfirmCloseRunningApp is not null)
+                            {
+                                try
+                                {
+                                    approved = await ConfirmCloseRunningApp(usage);
+                                }
+                                catch (Exception exception)
+                                {
+                                    AddLog($"Falha ao exibir a confirmação: {exception.Message}");
+                                }
+                            }
+
+                            if (!approved)
+                            {
+                                skipped = true;
+                                AddLog("Atualização ignorada: o aplicativo permaneceu aberto.");
+                            }
+                            else
+                            {
+                                ActivityTitle = $"Fechando {operation.Name}…";
+                                ActivityDetail = "Aguardando os processos e serviços encerrarem.";
+
+                                RunningAppCloseResult? closeResult = null;
+                                try
+                                {
+                                    closeResult = await _runningApps.CloseAsync(usage);
+                                }
+                                catch (Exception exception)
+                                {
+                                    AddLog($"Falha ao fechar o aplicativo: {exception.Message}");
+                                }
+
+                                if (closeResult is not null)
+                                {
+                                    stoppedServices.AddRange(closeResult.StoppedServices);
+                                    explorerClosed = closeResult.ExplorerClosed;
+
+                                    foreach (var service in closeResult.StoppedServices)
+                                    {
+                                        AddLog($"Serviço parado: {service}.");
+                                    }
+
+                                    if (!closeResult.Success)
+                                    {
+                                        foreach (var failure in closeResult.Failures)
+                                        {
+                                            AddLog($"Não foi possível fechar: {failure}.");
+                                        }
+
+                                        skipped = true;
+                                        AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
+                                    }
+                                }
+                                else
+                                {
+                                    skipped = true;
+                                    AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
+                                }
+
+                                if (!skipped)
+                                {
+                                    AddLog("Aplicativo liberado para atualização.");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!skipped)
+                {
+                    ActivityTitle = $"{operation.ActionLabel} {operation.Name}";
+                    ActivityDetail = position == _batchTotal
+                        ? operation.Id
+                        : $"{operation.Id} · {position} de {_batchTotal}";
+
+                    if (_cancelRequested)
+                    {
+                        AddLog("Atualização cancelada antes de iniciar o winget.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            result = await _winget.ExecuteOperationAsync(
+                                operation,
+                                _settings.SilentInstall,
+                                line => HandleOutputLine(operation, line),
+                                operationCts.Token);
+                        }
+                        catch (Exception exception)
+                        {
+                            result = new WingetCommandResult(-1, string.Empty, exception.Message, false, string.Empty);
+                        }
+                    }
+                }
             }
             finally
             {
+                // Serviços e Explorer precisam voltar mesmo se o winget falhar ou o lote
+                // for cancelado depois que o aplicativo já foi fechado.
+                await RestartServicesAsync(stoppedServices);
+
+                if (explorerClosed)
+                {
+                    _runningApps.EnsureExplorerRunning();
+                }
+
                 if (ReferenceEquals(_operationCts, operationCts))
                 {
                     _operationCts = null;
@@ -371,6 +507,28 @@ public sealed partial class OperationCenter : ObservableObject
             _cancelRequested = false;
 
             _batchDone++;
+
+            if (skipped)
+            {
+                _batchSkipped++;
+                if (wasCanceled)
+                {
+                    lastFinalizedCanceled = true;
+                }
+
+                // Não é falha nem cancelamento do winget: a linha volta ao estado normal.
+                RaiseItemState(operation, PackageOperationState.Canceled, string.Empty, canceledBeforeStart: true);
+                continue;
+            }
+
+            if (result is null)
+            {
+                // O usuário cancelou enquanto o aplicativo estava sendo liberado: o winget
+                // nunca foi iniciado e os serviços já voltaram no finally acima.
+                lastFinalizedCanceled = true;
+                RaiseItemState(operation, PackageOperationState.Canceled, string.Empty);
+                continue;
+            }
 
             if (result.IsSuccess)
             {
@@ -439,7 +597,7 @@ public sealed partial class OperationCenter : ObservableObject
 
     private void CompleteBatch()
     {
-        if (_batchFailed == 0)
+        if (_batchFailed == 0 && _batchSkipped == 0)
         {
             HasError = false;
             ActivityTitle = _batchTotal == 1 ? "Tudo pronto!" : $"{_batchSucceeded} tarefas concluídas";
@@ -447,11 +605,23 @@ public sealed partial class OperationCenter : ObservableObject
                 ? "A operação foi concluída com sucesso."
                 : "As operações foram concluídas com sucesso.";
         }
-        else if (_batchSucceeded > 0)
+        else if (_batchFailed == 0)
+        {
+            HasError = false;
+            HasWarning = true;
+            ActivityTitle = _batchSkipped == 1
+                ? "Atualização ignorada"
+                : $"{_batchSkipped} atualizações ignoradas";
+            ActivityDetail = "Uma ou mais atualizações não puderam ser aplicadas porque o aplicativo " +
+                             "continuou em uso. Feche-o ou permita o fechamento e tente novamente.";
+        }
+        else if (_batchSucceeded > 0 || _batchSkipped > 0)
         {
             HasError = true;
             ActivityTitle = "Algumas tarefas falharam";
-            ActivityDetail = $"{_batchSucceeded} concluída(s) · {_batchFailed} com falha. Abra os detalhes para ver o log.";
+            ActivityDetail = $"{_batchSucceeded} concluída(s) · {_batchFailed} com falha" +
+                             (_batchSkipped > 0 ? $" · {_batchSkipped} ignorada(s)" : string.Empty) +
+                             ". Abra os detalhes para ver o log.";
         }
         else
         {
@@ -462,6 +632,43 @@ public sealed partial class OperationCenter : ObservableObject
 
         IsActivityVisible = true;
         QueueCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task RestartServicesAsync(IReadOnlyList<string> services)
+    {
+        if (services.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _runningApps.RestartServicesAsync(services);
+
+            foreach (var service in result.RestartedServices)
+            {
+                AddLog($"Serviço reiniciado: {service}.");
+            }
+
+            foreach (var service in result.Failures)
+            {
+                AddLog($"Falha ao reiniciar o serviço: {service}.");
+            }
+        }
+        catch (Exception exception)
+        {
+            AddLog($"Falha ao reiniciar serviços: {exception.Message}");
+        }
+    }
+
+    private static string DescribeBlockers(RunningAppUsage usage)
+    {
+        var names = usage.Processes
+            .Select(process => process.Name)
+            .Concat(usage.Services.Select(service => $"serviço {service}"))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        return string.Join(", ", names);
     }
 
     /// <summary>

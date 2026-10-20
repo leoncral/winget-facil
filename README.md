@@ -11,6 +11,7 @@ instalado e escolher quais atualizações aplicar — sem abrir o terminal.
 - **Instalados** — lista os programas reconhecidos pelo winget, com filtro local e seleção em massa.
 - **Atualizações** — mostra apenas os pacotes com atualização pendente e permite atualizar em lote.
 - **Fila global** — instalações e atualizações são executadas uma por vez, com painel de atividade e log detalhado.
+- **Proteção ao atualizar** — antes de atualizar, detecta aplicativos, processos e serviços que estejam usando o pacote e só fecha o que estiver aberto depois da sua confirmação.
 - **Instalação silenciosa** — ativada por padrão e persistida entre sessões.
 - **Execução elevada** — o Asa pede permissão de administrador ao abrir (UAC), assim as instalações e
   atualizações do winget não interrompem o fluxo com novas confirmações.
@@ -62,6 +63,13 @@ O Asa é um cliente fino do `winget.exe`:
   `--accept-source-agreements` e `--disable-interactivity` (além de `--silent` quando ativado).
 - A saída tabular é interpretada a partir da posição das colunas no cabeçalho, portanto funciona
   com cabeçalhos localizados (por exemplo, `Nome`, `ID`, `Versão`, `Disponível` e `Origem`).
+- Antes de cada atualização, o Asa usa o Restart Manager do Windows e a pasta real do pacote
+  (MSIX ou registro de desinstalação) para descobrir processos, extensões e serviços em uso.
+  Quando o instalador não informa a pasta, a busca é feita dinamicamente pelo nome do pacote —
+  nunca por uma lista fixa de processos.
+- Com sua confirmação, o Asa tenta fechar o aplicativo normalmente e, se necessário, força o
+  encerramento; serviços parados são reiniciados ao final. O Explorer é reiniciado quando
+  necessário. Sem confirmação, somente aquela atualização é ignorada e a fila continua.
 
 Preferências ficam em `%LOCALAPPDATA%\Asa\settings.json`. Se ocorrer uma falha inesperada, os
 detalhes são gravados em `%LOCALAPPDATA%\Asa\crash.log`.

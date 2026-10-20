@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Asa.Models;
 using Asa.Views;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -44,6 +45,7 @@ public sealed partial class MainWindow : Window
         App.Packages.Changed += Packages_Changed;
         App.Operations.PropertyChanged += Operations_PropertyChanged;
         App.Operations.QueueCompleted += Operations_QueueCompleted;
+        App.Operations.ConfirmCloseRunningApp = ConfirmCloseRunningAppAsync;
 
         NavView.SelectedItem = DiscoverNav;
         NavigateTo(typeof(DiscoverPage));
@@ -373,6 +375,96 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task<bool> ConfirmCloseRunningAppAsync(RunningAppUsage usage)
+    {
+        try
+        {
+            if (AppWindow.Presenter is OverlappedPresenter presenter &&
+                presenter.State == OverlappedPresenterState.Minimized)
+            {
+                presenter.Restore();
+            }
+
+            Activate();
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            SetForegroundWindow(hwnd);
+        }
+        catch
+        {
+            // The dialog is still shown if the window cannot be brought to the front.
+        }
+
+        var panel = new StackPanel
+        {
+            Spacing = 12,
+            MaxWidth = 520
+        };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"O Windows não consegue instalar a nova versão de {usage.PackageName} enquanto os itens abaixo estiverem em uso:",
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var items = new StackPanel { Spacing = 4 };
+        var processGroups = usage.Processes
+            .GroupBy(process => process.Name)
+            .OrderBy(group => group.Key, StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var group in processGroups)
+        {
+            var count = group.Count();
+            var countText = count == 1 ? "1 processo" : $"{count} processos";
+            var extra = group.First().Kind == RunningAppProcessKind.Explorer
+                ? " · o Explorador será reiniciado"
+                : string.Empty;
+
+            items.Children.Add(new TextBlock
+            {
+                Text = $"• {group.Key} ({countText}){extra}",
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        foreach (var service in usage.Services)
+        {
+            items.Children.Add(new TextBlock
+            {
+                Text = $"• Serviço {service} (será parado e reiniciado)",
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        panel.Children.Add(items);
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Salve seu trabalho antes de continuar. O aplicativo será fechado e não será reaberto automaticamente.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = CautionBrush
+        });
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = $"Fechar {usage.PackageName} para atualizar?",
+            Content = new ScrollViewer
+            {
+                Content = panel,
+                MaxHeight = 380,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollMode = ScrollMode.Disabled
+            },
+            PrimaryButtonText = "Fechar e atualizar",
+            CloseButtonText = "Agora não",
+            DefaultButton = ContentDialogButton.Close,
+            MaxWidth = 620
+        };
+
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
+    }
+
     private async void ActivityLog_Click(object sender, RoutedEventArgs e)
     {
         _activityHideTimer.Stop();
@@ -424,4 +516,8 @@ public sealed partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
 }

@@ -253,7 +253,10 @@ public sealed partial class MainWindow : Window
             var package = App.Packages.Installed.FirstOrDefault(
                 candidate => string.Equals(candidate.Id, operation.Id, StringComparison.OrdinalIgnoreCase));
 
-            if (package is not null && package.CanUpdate && !stillPending.Contains(package.Name))
+            if (package is not null &&
+                package.CanUpdate &&
+                !package.HasUnknownVersion &&
+                !stillPending.Contains(package.Name))
             {
                 stillPending.Add(package.Name);
             }

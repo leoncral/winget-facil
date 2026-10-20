@@ -26,6 +26,11 @@ public sealed class PackagesViewModel : ObservableObject
         _operations = operations;
         _updatesOnlyMode = updatesOnlyMode;
         _showOnlyUpdates = updatesOnlyMode;
+
+        // Assinatura única por instância (esta classe é criada uma vez no App): as páginas
+        // Instalados e Atualizações compartilham o mesmo OperationCenter e cada ViewModel
+        // reage às mesmas notificações, sem inscrição duplicada.
+        _operations.ItemStateChanged += Operations_ItemStateChanged;
     }
 
     public ObservableCollection<PackageRow> Items { get; } = [];
@@ -291,6 +296,28 @@ public sealed class PackagesViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Traduz o ciclo de vida de um item da fila (notificado pelo OperationCenter com o Id do
+    /// pacote) para o estado da linha correspondente. Busca por Id sem distinção de
+    /// maiúsculas/minúsculas; roda na UI thread, então as notificações da linha são seguras.
+    /// </summary>
+    private void Operations_ItemStateChanged(object? sender, OperationItemEventArgs e)
+    {
+        var state = e.State switch
+        {
+            PackageOperationState.Queued => PackageRowState.Queued,
+            PackageOperationState.Running => PackageRowState.Running,
+            PackageOperationState.Succeeded => PackageRowState.Succeeded,
+            PackageOperationState.Failed => PackageRowState.Failed,
+            _ => PackageRowState.Idle
+        };
+
+        var row = _allRows.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, e.PackageId, StringComparison.OrdinalIgnoreCase));
+
+        row?.ApplyOperationState(state, e.Kind == PackageOperationKind.Upgrade, e.Message);
+    }
+
     private void RebuildFromStore()
     {
         // Guarda a seleção por Id antes de reconstruir: quem continua na lista mantém o
@@ -341,6 +368,17 @@ public sealed class PackagesViewModel : ObservableObject
 
         _allRows.Clear();
         _allRows.AddRange(nextRows);
+
+        // Se um refresh do store acontecer no meio de uma operação, uma linha nova (ou
+        // recriada) para um pacote que continua na fila volta a exibir "Na fila" em vez de
+        // ficar em Idle até a conclusão.
+        foreach (var row in _allRows)
+        {
+            if (row.State == PackageRowState.Idle && _operations.Contains(row.Id))
+            {
+                row.ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
+            }
+        }
 
         foreach (var row in _allRows)
         {

@@ -79,6 +79,13 @@ public sealed partial class OperationCenter : ObservableObject
 
     public event EventHandler? QueueCompleted;
 
+    /// <summary>
+    /// Notifica o ciclo de vida de um item da fila (enfileirado → executando → concluído/falhou)
+    /// com o identificador do pacote, para que cada tela possa refletir o estado na própria linha.
+    /// Sempre disparada na UI thread.
+    /// </summary>
+    public event EventHandler<OperationItemEventArgs>? ItemStateChanged;
+
     public bool EnqueueInstall(SearchPackage package)
     {
         return Enqueue(new PackageOperation(
@@ -185,6 +192,9 @@ public sealed partial class OperationCenter : ObservableObject
         _queue.Enqueue(operation);
         _batchTotal++;
 
+        // Notificação por ID: a linha correspondente passa a exibir "Na fila".
+        RaiseItemState(operation, PackageOperationState.Queued, string.Empty);
+
         IsActivityVisible = true;
         if (wasIdle)
         {
@@ -244,6 +254,8 @@ public sealed partial class OperationCenter : ObservableObject
                 ? operation.Id
                 : $"{operation.Id} · {position} de {_batchTotal}";
 
+            RaiseItemState(operation, PackageOperationState.Running, string.Empty);
+
             AddLog(string.Empty);
             AddLog($"── {operation.ActionLabel} {operation.Name} · {operation.Id} ──");
 
@@ -271,6 +283,7 @@ public sealed partial class OperationCenter : ObservableObject
                 }
 
                 AddLog($"Concluído (código 0).");
+                RaiseItemState(operation, PackageOperationState.Succeeded, string.Empty);
             }
             else
             {
@@ -281,6 +294,12 @@ public sealed partial class OperationCenter : ObservableObject
                 {
                     AddLog(errorText.Trim());
                 }
+
+                // A mesma mensagem já usada no log vira o tooltip de falha da linha.
+                var failureMessage = string.IsNullOrWhiteSpace(errorText)
+                    ? $"Falhou (código {result.ExitCodeDisplay})."
+                    : errorText.Trim();
+                RaiseItemState(operation, PackageOperationState.Failed, Truncate(failureMessage, 240));
             }
         }
 
@@ -314,6 +333,34 @@ public sealed partial class OperationCenter : ObservableObject
 
         IsActivityVisible = true;
         QueueCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Publica o estado de um item da fila na UI thread (os await da fila podem retornar
+    /// fora dela) para que as linhas correspondentes sejam atualizadas com segurança.
+    /// </summary>
+    private void RaiseItemState(PackageOperation operation, PackageOperationState state, string message)
+    {
+        void Raise()
+        {
+            ItemStateChanged?.Invoke(
+                this,
+                new OperationItemEventArgs(operation.Id, state, operation.Kind, message));
+        }
+
+        if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(Raise);
+        }
+        else
+        {
+            Raise();
+        }
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        return value.Length <= maxLength ? value : value[..maxLength] + "…";
     }
 
     private void HandleOutputLine(PackageOperation operation, string rawLine)
@@ -389,4 +436,39 @@ public sealed partial class OperationCenter : ObservableObject
 
     [GeneratedRegex(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")]
     private static partial Regex AnsiEscapeRegex();
+}
+
+/// <summary>Estado de um item dentro da fila do <see cref="OperationCenter"/>.</summary>
+public enum PackageOperationState
+{
+    Queued,
+    Running,
+    Succeeded,
+    Failed
+}
+
+/// <summary>
+/// Argumentos de <see cref="OperationCenter.ItemStateChanged"/>: identifica o pacote pelo Id
+/// (sem case sensitivity) para que cada ViewModel encontre a linha correspondente.
+/// </summary>
+public sealed class OperationItemEventArgs : EventArgs
+{
+    public OperationItemEventArgs(string packageId, PackageOperationState state, PackageOperationKind kind, string message)
+    {
+        PackageId = packageId;
+        State = state;
+        Kind = kind;
+        Message = message;
+    }
+
+    /// <summary>Id do pacote (winget), usado para casar com a linha exibida.</summary>
+    public string PackageId { get; }
+
+    public PackageOperationState State { get; }
+
+    /// <summary>Instalação ou atualização: define o texto "Instalando…" vs "Atualizando…".</summary>
+    public PackageOperationKind Kind { get; }
+
+    /// <summary>Mensagem de falha (vazia nos demais estados).</summary>
+    public string Message { get; }
 }

@@ -6,6 +6,13 @@
 
     <helpers:BoolToVisibilityConverter x:Key="BoolToVisibility" />
 
+    <!--
+        Vermelho de erro já usado pelo app (MainWindow.CriticalBrush, #C42B1C), exposto como
+        recurso para o indicador de falha da linha.
+        TODO(Fase R / R-3, R-4): substituir por token visual da paleta (ex.: SystemFillColorCriticalBrush).
+    -->
+    <SolidColorBrush x:Key="ErrorStatusForegroundBrush" Color="#C42B1C" />
+
     <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
 
     <LinearGradientBrush x:Key="HeroGradientBrush" StartPoint="0,0" EndPoint="1,1">

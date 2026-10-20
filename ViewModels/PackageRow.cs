@@ -1,13 +1,43 @@
 using Asa.Helpers;
 using Asa.Models;
+using Microsoft.UI.Dispatching;
 
 namespace Asa.ViewModels;
 
+/// <summary>
+/// Estado da operação refletido na coluna de ação da linha. É o que o
+/// <see cref="PackagesViewModel"/> aplica a partir das notificações do OperationCenter.
+/// </summary>
+public enum PackageRowState
+{
+    Idle,
+    Queued,
+    Running,
+    Succeeded,
+    Failed
+}
+
 public sealed class PackageRow : ObservableObject
 {
+    /// <summary>
+    /// Tempo mínimo em que "Na fila" fica visível. A fila inicia o processamento no mesmo
+    /// ciclo de UI do enfileiramento; sem isso o estado Queued seria pintado e substituído
+    /// por Running antes de qualquer quadro aparecer. Só retarda a PINTURA, não a fila.
+    /// </summary>
+    private static readonly TimeSpan MinimumQueuedDisplay = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>Tempo em que o check "Concluído" fica visível antes de voltar para Idle.</summary>
+    private static readonly TimeSpan SucceededDisplay = TimeSpan.FromSeconds(3);
+
     private readonly Action<PackageRow> _requestUpdate;
     private bool _isSelected;
     private bool _isQueued;
+    private PackageRowState _state = PackageRowState.Idle;
+    private string _stateMessage = string.Empty;
+    private bool _isUpgradeOperation = true;
+    private DispatcherQueue? _dispatcherQueue;
+    private int _stateVersion;
+    private DateTimeOffset _queuedSince;
 
     public PackageRow(InstalledPackage package, Action<PackageRow> requestUpdate)
     {
@@ -38,6 +68,7 @@ public sealed class PackageRow : ObservableObject
         {
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(Initial));
+            OnPropertyChanged(nameof(RowStatusAutomationName));
         }
 
         if (!string.Equals(previous.Id, package.Id, StringComparison.Ordinal))
@@ -69,6 +100,7 @@ public sealed class PackageRow : ObservableObject
         {
             OnPropertyChanged(nameof(CanUpdate));
             OnPropertyChanged(nameof(ShowInSync));
+            OnPropertyChanged(nameof(ShowActionButton));
             UpdateCommand.NotifyCanExecuteChanged();
         }
     }
@@ -118,5 +150,191 @@ public sealed class PackageRow : ObservableObject
     {
         IsQueued = true;
         IsSelected = false;
+
+        // Rede de segurança: o OperationCenter já notifica o estado (evento ItemStateChanged)
+        // e nesta chamada a linha normalmente já está Queued; só age se nada notificou.
+        if (State == PackageRowState.Idle)
+        {
+            ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
+        }
+    }
+
+    /// <summary>Estado atual da operação desta linha (Idle quando nenhuma operação está ativa).</summary>
+    public PackageRowState State
+    {
+        get => _state;
+        private set
+        {
+            if (SetProperty(ref _state, value))
+            {
+                if (value == PackageRowState.Queued)
+                {
+                    _queuedSince = DateTimeOffset.UtcNow;
+                }
+
+                NotifyStateDependentProperties();
+            }
+        }
+    }
+
+    /// <summary>Mensagem de falha exibida como tooltip do glifo de erro.</summary>
+    public string StateMessage
+    {
+        get => _stateMessage;
+        private set => SetProperty(ref _stateMessage, value);
+    }
+
+    /// <summary>Está enfileirado ou em execução (fila ativa para esta linha).</summary>
+    public bool IsBusyRow => State is PackageRowState.Queued or PackageRowState.Running;
+
+    /// <summary>Texto exibido no indicador da coluna de ação.</summary>
+    public string StateText => State switch
+    {
+        PackageRowState.Queued => "Na fila",
+        PackageRowState.Running => _isUpgradeOperation ? "Atualizando…" : "Instalando…",
+        PackageRowState.Succeeded => "Concluído",
+        PackageRowState.Failed => "Falhou",
+        _ => string.Empty
+    };
+
+    /// <summary>Nome de acessibilidade do indicador, ex.: "7-Zip: instalando".</summary>
+    public string RowStatusAutomationName =>
+        State == PackageRowState.Idle ? Name : $"{Name}: {StateAutomationText}";
+
+    private string StateAutomationText => State switch
+    {
+        PackageRowState.Queued => "na fila",
+        PackageRowState.Running => _isUpgradeOperation ? "atualizando" : "instalando",
+        PackageRowState.Succeeded => "concluído",
+        PackageRowState.Failed => "falhou",
+        _ => string.Empty
+    };
+
+    // Apenas um destes fica visível por vez, todos dentro da MESMA célula do botão de ação:
+    // a coluna tem largura fixa e a linha nunca muda de altura (zero layout shift).
+
+    public bool ShowActionButton => CanUpdate && State == PackageRowState.Idle;
+
+    public bool ShowQueueIndicator => State == PackageRowState.Queued;
+
+    public bool ShowRunningIndicator => State == PackageRowState.Running;
+
+    public bool ShowSucceededIndicator => State == PackageRowState.Succeeded;
+
+    public bool ShowFailedIndicator => State == PackageRowState.Failed;
+
+    /// <summary>
+    /// Aplica um estado reportado pelo <c>OperationCenter.ItemStateChanged</c>
+    /// (sempre chamado na UI thread).
+    /// </summary>
+    public void ApplyOperationState(PackageRowState state, bool isUpgradeOperation, string message = "")
+    {
+        _dispatcherQueue ??= DispatcherQueue.GetForCurrentThread();
+
+        var version = ++_stateVersion;
+
+        if (state == PackageRowState.Running && State == PackageRowState.Queued)
+        {
+            var remaining = MinimumQueuedDisplay - (DateTimeOffset.UtcNow - _queuedSince);
+            if (remaining > TimeSpan.Zero && _dispatcherQueue is not null)
+            {
+                _ = ApplyStateAfterAsync(version, remaining, state, isUpgradeOperation, message);
+                return;
+            }
+        }
+
+        ApplyStateCore(version, state, isUpgradeOperation, message);
+    }
+
+    private async Task ApplyStateAfterAsync(
+        int version,
+        TimeSpan delay,
+        PackageRowState state,
+        bool isUpgradeOperation,
+        string message)
+    {
+        await Task.Delay(delay);
+
+        if (version == _stateVersion)
+        {
+            ApplyStateCore(version, state, isUpgradeOperation, message);
+        }
+    }
+
+    private void ApplyStateCore(int version, PackageRowState state, bool isUpgradeOperation, string message)
+    {
+        if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => ApplyStateCore(version, state, isUpgradeOperation, message));
+            return;
+        }
+
+        if (version != _stateVersion)
+        {
+            // Um estado mais novo chegou enquanto este esperava: o mais novo sempre vence.
+            return;
+        }
+
+        if (_isUpgradeOperation != isUpgradeOperation)
+        {
+            _isUpgradeOperation = isUpgradeOperation;
+            OnPropertyChanged(nameof(StateText));
+            OnPropertyChanged(nameof(RowStatusAutomationName));
+        }
+
+        StateMessage = message;
+        State = state;
+
+        // Enquanto a linha está em execução ela segue "ocupada": o botão de ação fica
+        // oculto pelo indicador e o comando continua desabilitado (IsQueued => CanExecute false).
+        IsQueued = state is PackageRowState.Queued or PackageRowState.Running;
+
+        if (state == PackageRowState.Succeeded)
+        {
+            _ = ReturnToIdleAfterAsync(version);
+        }
+    }
+
+    private async Task ReturnToIdleAfterAsync(int version)
+    {
+        await Task.Delay(SucceededDisplay);
+
+        if (version != _stateVersion || State != PackageRowState.Succeeded)
+        {
+            return;
+        }
+
+        void Reset()
+        {
+            if (version != _stateVersion || State != PackageRowState.Succeeded)
+            {
+                return;
+            }
+
+            State = PackageRowState.Idle;
+            IsQueued = false;
+        }
+
+        if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(Reset);
+        }
+        else
+        {
+            Reset();
+        }
+    }
+
+    private void NotifyStateDependentProperties()
+    {
+        OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(IsBusyRow));
+        OnPropertyChanged(nameof(RowStatusAutomationName));
+        OnPropertyChanged(nameof(ShowActionButton));
+        OnPropertyChanged(nameof(ShowQueueIndicator));
+        OnPropertyChanged(nameof(ShowRunningIndicator));
+        OnPropertyChanged(nameof(ShowSucceededIndicator));
+        OnPropertyChanged(nameof(ShowFailedIndicator));
+        UpdateCommand.NotifyCanExecuteChanged();
     }
 }

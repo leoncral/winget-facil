@@ -1,3 +1,5 @@
+<img src="Assets/Asa.png" width="88" align="right" alt="Ícone do Asa" />
+
 # Asa · winget fácil
 
 Uma interface leve e simples para o **winget** no Windows, feita em **C# com WinUI 3**.

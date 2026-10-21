@@ -5,6 +5,31 @@ using Asa.Services;
 
 namespace Asa.ViewModels;
 
+/// <summary>
+/// Estados de apresentação explícitos da lista (F1-5). O estado é derivado dos dados
+/// (carregamento/linhas/erro/filtro) e nunca depende de animação para ser compreendido.
+/// </summary>
+public enum PackagesDisplayState
+{
+    /// <summary>Primeira carga, ainda sem dados: placeholder neutro (nunca "vazio").</summary>
+    Skeleton,
+
+    /// <summary>Recarga com dados já visíveis: lista permanece + anel no cabeçalho.</summary>
+    Loading,
+
+    /// <summary>Carregado, com itens visíveis.</summary>
+    Loaded,
+
+    /// <summary>Lista real vazia (o winget não devolveu nada / nada pendente).</summary>
+    Empty,
+
+    /// <summary>Há itens, mas o filtro de texto não deixou nenhum passar.</summary>
+    EmptyFiltered,
+
+    /// <summary>Erro sem dados parciais para exibir (InfoBar assuma o papel).</summary>
+    Error
+}
+
 public sealed class PackagesViewModel : ObservableObject
 {
     private readonly PackageStore _store;
@@ -19,6 +44,19 @@ public sealed class PackagesViewModel : ObservableObject
     private int _selectedCount;
     private int _updateCount;
     private int _installedCount;
+
+    /// <summary>
+    /// F1-4: o usuário já marcou/desmarcou algo (individual ou select-all/limpar). Depois
+    /// de tocada, a seleção é exclusivamente do usuário e NUNCA é refeita automaticamente.
+    /// </summary>
+    private bool _selectionTouchedByUser;
+
+    /// <summary>
+    /// Sobe enquanto o ViewModel altera <see cref="PackageRow.IsSelected"/> por conta própria
+    /// (auto-seleção, select-all, limpar, enfileiramento) para que essas mudanças NÃO
+    /// contem como "o usuário mexeu na seleção".
+    /// </summary>
+    private bool _suppressSelectionTouch;
 
     public PackagesViewModel(PackageStore store, OperationCenter operations, bool updatesOnlyMode)
     {
@@ -95,6 +133,8 @@ public sealed class PackagesViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(SelectionButtonText));
                 OnPropertyChanged(nameof(CanUpdateSelected));
+                OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(SelectAllState));
             }
         }
     }
@@ -131,18 +171,96 @@ public sealed class PackagesViewModel : ObservableObject
     public bool AllVisibleSelected =>
         HasVisibleUpdates && Items.Where(row => row.CanUpdate && !row.IsQueued).All(row => row.IsSelected);
 
+    /// <summary>
+    /// F1-4: estado do select-all calculado sobre a lista <b>FILTRADA</b> (<see cref="Items"/>):
+    /// true = todos os elegíveis marcados; null = parcial (indeterminado); false = nenhum
+    /// (ou nenhum elegível visível).
+    /// </summary>
+    public bool? SelectAllState
+    {
+        get
+        {
+            var eligible = Items.Where(row => row.CanUpdate && !row.IsQueued).ToList();
+            if (eligible.Count == 0)
+            {
+                return false;
+            }
+
+            var selected = eligible.Count(row => row.IsSelected);
+            if (selected == 0)
+            {
+                return false;
+            }
+
+            return selected == eligible.Count ? true : null;
+        }
+    }
+
     public bool CanUpdateSelected => SelectedCount > 0;
+
+    /// <summary>Há itens marcados (habilita o "Limpar seleção").</summary>
+    public bool HasSelection => SelectedCount > 0;
 
     public string SelectionButtonText =>
         SelectedCount == 0 ? "Atualizar selecionados" : $"Atualizar selecionados ({SelectedCount})";
+
+    // ---- F1-5: estados de apresentação (derivados; nunca dependem de animação) ----
+
+    /// <summary>Estado explícito atual da página.</summary>
+    public PackagesDisplayState DisplayState
+    {
+        get
+        {
+            if (IsLoading)
+            {
+                return _allRows.Count == 0
+                    ? PackagesDisplayState.Skeleton
+                    : PackagesDisplayState.Loading;
+            }
+
+            // Erro sem nada visível: só a InfoBar (a lista NÃO é escondida quando há dados).
+            if (HasError && Items.Count == 0)
+            {
+                return PackagesDisplayState.Error;
+            }
+
+            if (!_isLoaded)
+            {
+                // Ainda não houve nenhuma carga bem-sucedida: nunca mostrar "vazio".
+                return PackagesDisplayState.Skeleton;
+            }
+
+            if (Items.Count == 0)
+            {
+                return IsTextFilterActive
+                    ? PackagesDisplayState.EmptyFiltered
+                    : PackagesDisplayState.Empty;
+            }
+
+            return PackagesDisplayState.Loaded;
+        }
+    }
+
+    /// <summary>Filtro de texto ativo (discrimina vazio real × vazio de filtro).</summary>
+    private bool IsTextFilterActive => !string.IsNullOrWhiteSpace(SearchText);
+
+    public bool ShowSkeleton => DisplayState == PackagesDisplayState.Skeleton;
+
+    /// <summary>Recarga com dados visíveis (o anel do cabeçalho já cobre isso).</summary>
+    public bool ShowLoading => DisplayState == PackagesDisplayState.Loading;
 
     public bool ShowList => Items.Count > 0;
 
     public bool ShowColumnHeader => Items.Count > 0;
 
-    public bool IsInitialLoading => IsLoading && Items.Count == 0;
+    /// <summary>Compat: mesma semântica de <see cref="ShowSkeleton"/> (primeira carga).</summary>
+    public bool IsInitialLoading => ShowSkeleton;
 
-    public bool ShowEmpty => _isLoaded && !IsLoading && !HasError && Items.Count == 0;
+    public bool ShowEmpty => DisplayState == PackagesDisplayState.Empty;
+
+    public bool ShowEmptyFiltered => DisplayState == PackagesDisplayState.EmptyFiltered;
+
+    public bool ShowInitialError => DisplayState == PackagesDisplayState.Error;
 
     public string EmptyTitle
     {
@@ -194,6 +312,13 @@ public sealed class PackagesViewModel : ObservableObject
             return ShowOnlyUpdates || _updatesOnlyMode ? "\uE73E" : "\uE71D";
         }
     }
+
+    /// <summary>Mensagem específica para o filtro sem resultado (F1-5).</summary>
+    public string EmptyFilteredTitle => $"Nenhum resultado para “{SearchText.Trim()}”.";
+
+    public string EmptyFilteredDescription => "Tente outro nome ou parte do identificador do pacote.";
+
+    public string EmptyFilteredGlyph => "\uE721";
 
     public string HeaderSummary
     {
@@ -254,11 +379,40 @@ public sealed class PackagesViewModel : ObservableObject
         NotifyStateProperties();
     }
 
+    /// <summary>
+    /// Select-all sobre a lista FILTRADA. Marca a seleção como tocada pelo usuário:
+    /// a partir daí nenhum refresh volta a selecionar nada automaticamente.
+    /// </summary>
     public void SetAllVisibleSelected(bool selected)
     {
-        foreach (var row in Items.Where(row => row.CanUpdate && !row.IsQueued))
+        _selectionTouchedByUser = true;
+        SetRowsSelected(Items.Where(row => row.CanUpdate && !row.IsQueued), selected);
+    }
+
+    /// <summary>Limpa toda a seleção (visível ou não) e sinaliza escolha do usuário.</summary>
+    public void ClearSelection()
+    {
+        _selectionTouchedByUser = true;
+        SetRowsSelected(_allRows.Where(row => row.IsSelected), selected: false);
+    }
+
+    /// <summary>Alterna IsSelected programaticamente sem contar como toque do usuário.</summary>
+    private void SetRowsSelected(IEnumerable<PackageRow> rows, bool selected)
+    {
+        _suppressSelectionTouch = true;
+        try
         {
-            row.IsSelected = selected;
+            foreach (var row in rows)
+            {
+                if (row.IsSelected != selected)
+                {
+                    row.IsSelected = selected;
+                }
+            }
+        }
+        finally
+        {
+            _suppressSelectionTouch = false;
         }
     }
 
@@ -273,7 +427,7 @@ public sealed class PackagesViewModel : ObservableObject
         {
             if (_operations.EnqueueUpgrade(row.Package))
             {
-                row.MarkQueued();
+                MarkQueuedProgrammatically(row);
                 count++;
             }
         }
@@ -291,8 +445,25 @@ public sealed class PackagesViewModel : ObservableObject
 
         if (_operations.EnqueueUpgrade(row.Package))
         {
-            row.MarkQueued();
+            MarkQueuedProgrammatically(row);
             UpdateSelectionState();
+        }
+    }
+
+    /// <summary>
+    /// Enfileira a linha sem que o desmarque interno do <see cref="PackageRow.MarkQueued"/>
+    /// conte como toque do usuário na seleção (o enfileiramento não é uma escolha de check).
+    /// </summary>
+    private void MarkQueuedProgrammatically(PackageRow row)
+    {
+        _suppressSelectionTouch = true;
+        try
+        {
+            row.MarkQueued();
+        }
+        finally
+        {
+            _suppressSelectionTouch = false;
         }
     }
 
@@ -385,13 +556,31 @@ public sealed class PackagesViewModel : ObservableObject
             }
         }
 
-        foreach (var row in _allRows)
+        // Restaura a marca por Id (F1-1). Programático: não conta como toque do usuário.
+        _suppressSelectionTouch = true;
+        try
         {
-            var isSelected = selectedIds.Contains(row.Id);
-            if (row.IsSelected != isSelected)
+            foreach (var row in _allRows)
             {
-                row.IsSelected = isSelected;
+                var isSelected = selectedIds.Contains(row.Id);
+                if (row.IsSelected != isSelected)
+                {
+                    row.IsSelected = isSelected;
+                }
             }
+        }
+        finally
+        {
+            _suppressSelectionTouch = false;
+        }
+
+        // F1-4: no modo "só atualizações", enquanto o usuário nunca mexeu na seleção,
+        // todo item elegível vem marcado (padrão Microsoft Store). Vale no primeiro load
+        // e em refreshes; depois de tocada a escolha do usuário (por Id) é preservada e
+        // itens novos nascem desmarcados.
+        if (_updatesOnlyMode && !_selectionTouchedByUser)
+        {
+            SetRowsSelected(_allRows.Where(row => row.CanUpdate && !row.IsQueued), selected: true);
         }
 
         ErrorMessage = _store.ErrorMessage;
@@ -454,6 +643,12 @@ public sealed class PackagesViewModel : ObservableObject
 
     private void Row_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PackageRow.IsSelected) && !_suppressSelectionTouch)
+        {
+            // F1-4: marca/desmarca vindo do próprio checkbox da linha = escolha do usuário.
+            _selectionTouchedByUser = true;
+        }
+
         if (e.PropertyName is nameof(PackageRow.IsSelected) or nameof(PackageRow.IsQueued))
         {
             UpdateSelectionState();
@@ -465,23 +660,30 @@ public sealed class PackagesViewModel : ObservableObject
         SelectedCount = Items.Count(row => row.IsSelected && row.CanUpdate && !row.IsQueued);
         OnPropertyChanged(nameof(HasVisibleUpdates));
         OnPropertyChanged(nameof(AllVisibleSelected));
-        OnPropertyChanged(nameof(ShowList));
-        OnPropertyChanged(nameof(ShowColumnHeader));
-        OnPropertyChanged(nameof(ShowEmpty));
+        OnPropertyChanged(nameof(SelectAllState));
     }
 
     private void NotifyStateProperties()
     {
+        OnPropertyChanged(nameof(DisplayState));
+        OnPropertyChanged(nameof(ShowSkeleton));
+        OnPropertyChanged(nameof(ShowLoading));
         OnPropertyChanged(nameof(ShowList));
         OnPropertyChanged(nameof(ShowColumnHeader));
         OnPropertyChanged(nameof(IsInitialLoading));
         OnPropertyChanged(nameof(ShowEmpty));
+        OnPropertyChanged(nameof(ShowEmptyFiltered));
+        OnPropertyChanged(nameof(ShowInitialError));
         OnPropertyChanged(nameof(EmptyTitle));
         OnPropertyChanged(nameof(EmptyDescription));
         OnPropertyChanged(nameof(EmptyGlyph));
+        OnPropertyChanged(nameof(EmptyFilteredTitle));
+        OnPropertyChanged(nameof(EmptyFilteredDescription));
+        OnPropertyChanged(nameof(EmptyFilteredGlyph));
         OnPropertyChanged(nameof(HeaderSummary));
         OnPropertyChanged(nameof(HasVisibleUpdates));
         OnPropertyChanged(nameof(AllVisibleSelected));
+        OnPropertyChanged(nameof(SelectAllState));
         OnPropertyChanged(nameof(HasAnyUpdates));
     }
 }

@@ -71,16 +71,25 @@
                 </AutoSuggestBox.QueryIcon>
             </AutoSuggestBox>
 
-            <Button
-                Grid.Column="2"
-                IsEnabled="{x:Bind ViewModel.CanUpdateSelected, Mode=OneWay}"
-                Style="{StaticResource PrimaryActionButtonStyle}"
-                Click="UpdateSelected_Click">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE895;" FontSize="14" />
-                    <TextBlock Text="{x:Bind ViewModel.SelectionButtonText, Mode=OneWay}" />
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <!-- TODO(Fase R / R-4): padrão visual do "Limpar seleção" (chip vs. botão). -->
+                <Button
+                    Content="Limpar seleção"
+                    Style="{StaticResource ChipButtonStyle}"
+                    Visibility="{x:Bind ViewModel.HasSelection, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Click="ClearSelection_Click" />
+                <Button
+                    IsEnabled="{x:Bind ViewModel.CanUpdateSelected, Mode=OneWay}"
+                    Style="{StaticResource PrimaryActionButtonStyle}"
+                    ToolTipService.ToolTip="Selecione ao menos um pacote para atualizar."
+                    AutomationProperties.Name="Atualizar selecionados"
+                    Click="UpdateSelected_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE895;" FontSize="14" />
+                        <TextBlock Text="{x:Bind ViewModel.SelectionButtonText, Mode=OneWay}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <InfoBar
@@ -119,10 +128,12 @@
                                 <ColumnDefinition Width="100" />
                             </Grid.ColumnDefinitions>
 
+                            <!-- Select-all tri-state: IsChecked bool? sobre a lista FILTRADA
+                                 (true = tudo marcado, null = parcial/indeterminado). -->
                             <CheckBox
                                 x:Name="SelectAllBox"
                                 Grid.Column="0"
-                                IsChecked="{x:Bind ViewModel.AllVisibleSelected, Mode=OneWay}"
+                                IsChecked="{x:Bind ViewModel.SelectAllState, Mode=OneWay}"
                                 IsEnabled="{x:Bind ViewModel.HasVisibleUpdates, Mode=OneWay}"
                                 Click="SelectAll_Click"
                                 ToolTipService.ToolTip="Selecionar todas as atualizações"
@@ -167,16 +178,109 @@
                 </Grid>
             </Border>
 
+            <!-- TODO(Fase R / R-3, R-4): skeleton provisório — retângulos neutros com a
+                 altura aproximada das linhas reais (raio 8), SEM animação. A Fase R
+                 aplica tokens e o pulso de opacidade respeitando UISettings.AnimationsEnabled. -->
             <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="12"
-                Margin="0,0,0,40"
-                Visibility="{x:Bind ViewModel.IsInitialLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <ProgressRing Width="36" Height="36" IsActive="{x:Bind ViewModel.IsInitialLoading, Mode=OneWay}" />
-                <TextBlock
-                    Text="Procurando atualizações…"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                VerticalAlignment="Top"
+                Margin="0,0,0,24"
+                Visibility="{x:Bind ViewModel.ShowSkeleton, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Height="62" Padding="16,0">
+                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
             </StackPanel>
 
             <StackPanel
@@ -207,6 +311,42 @@
                     Text="{x:Bind ViewModel.EmptyDescription, Mode=OneWay}"
                     Style="{StaticResource PageSubtitleTextStyle}"
                     TextAlignment="Center" />
+            </StackPanel>
+
+            <!-- F1-5: vazio de FILTRO é distinto do vazio real (mensagem + ação específicas). -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="400"
+                Spacing="10"
+                Margin="0,0,0,40"
+                Visibility="{x:Bind ViewModel.ShowEmptyFiltered, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Border
+                    Width="58"
+                    Height="58"
+                    CornerRadius="29"
+                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                    HorizontalAlignment="Center">
+                    <FontIcon
+                        Glyph="{x:Bind ViewModel.EmptyFilteredGlyph, Mode=OneWay}"
+                        FontSize="23"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Border>
+                <TextBlock
+                    Text="{x:Bind ViewModel.EmptyFilteredTitle, Mode=OneWay}"
+                    Style="{StaticResource SectionTitleTextStyle}"
+                    HorizontalAlignment="Center" />
+                <TextBlock
+                    Text="{x:Bind ViewModel.EmptyFilteredDescription, Mode=OneWay}"
+                    Style="{StaticResource PageSubtitleTextStyle}"
+                    TextAlignment="Center" />
+                <Button
+                    Content="Limpar filtro"
+                    Style="{StaticResource ChipButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Click="ClearFilter_Click" />
             </StackPanel>
         </Grid>
     </Grid>

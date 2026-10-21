@@ -65,8 +65,19 @@ public sealed partial class InstalledPage : Page
     {
         if (sender is CheckBox checkBox)
         {
+            // Estado indeterminado (parcial) clicado vira "marcar tudo".
             ViewModel.SetAllVisibleSelected(checkBox.IsChecked == true);
         }
+    }
+
+    private void ClearSelection_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ClearSelection();
+    }
+
+    private void ClearFilter_Click(object sender, RoutedEventArgs e)
+    {
+        FilterBox.Text = string.Empty;
     }
 
     private void UpdateSelected_Click(object sender, RoutedEventArgs e)

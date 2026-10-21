@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Asa.Models;
+using Asa.Services;
+using Asa.ViewModels;
 using Asa.Views;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -9,10 +11,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace Asa;
 
@@ -24,6 +28,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _activityHideTimer;
     private bool _cancelFlowOpen;
     private bool _initialized;
+    private Storyboard? _updatesBadgePulse;
 
     public MainWindow()
     {
@@ -42,7 +47,10 @@ public sealed partial class MainWindow : Window
         RootGrid.ActualThemeChanged += (_, _) => ApplyTitleBarColors();
         RootGrid.Loaded += RootGrid_Loaded;
 
+        var app = (App)Application.Current;
         App.Packages.Changed += Packages_Changed;
+        app.InstalledPackages.PropertyChanged += PackagesSelection_PropertyChanged;
+        app.UpdatesPackages.PropertyChanged += PackagesSelection_PropertyChanged;
         App.Operations.PropertyChanged += Operations_PropertyChanged;
         App.Operations.QueueCompleted += Operations_QueueCompleted;
         App.Operations.ConfirmCloseRunningApp = ConfirmCloseRunningAppAsync;
@@ -50,6 +58,9 @@ public sealed partial class MainWindow : Window
         NavView.SelectedItem = DiscoverNav;
         NavigateTo(typeof(DiscoverPage));
         UpdateActivityBar();
+        UpdateStatusBar();
+
+        _updatesBadgePulse = RootGrid.Resources["UpdatesBadgePulse"] as Storyboard;
     }
 
     private async void RootGrid_Loaded(object sender, RoutedEventArgs e)
@@ -65,6 +76,7 @@ public sealed partial class MainWindow : Window
 
     private async Task InitializeWingetAsync()
     {
+        var app = (App)Application.Current;
         WingetStatusText.Text = "Verificando o winget…";
         WingetStatusDot.Fill = SuccessBrush;
 
@@ -74,6 +86,8 @@ public sealed partial class MainWindow : Window
             WingetStatusText.Text = "winget indisponível";
             WingetStatusDot.Fill = CriticalBrush;
             WingetMissingBar.IsOpen = true;
+            App.Packages.SetHealth(PackageStore.WingetHealth.Unhealthy);
+            UpdateStatusBar();
             return;
         }
 
@@ -83,6 +97,10 @@ public sealed partial class MainWindow : Window
 
         await App.Packages.RefreshAsync();
         UpdateUpdatesBadge();
+
+        var wingetHealthy = App.Packages.HasLoaded && string.IsNullOrEmpty(App.Packages.ErrorMessage);
+        App.Packages.SetHealth(wingetHealthy ? PackageStore.WingetHealth.Healthy : PackageStore.WingetHealth.Degraded);
+        UpdateStatusBar();
     }
 
     private void ConfigureWindow()
@@ -207,13 +225,54 @@ public sealed partial class MainWindow : Window
     private void Packages_Changed(object? sender, EventArgs e)
     {
         UpdateUpdatesBadge();
+        UpdateStatusBar();
+    }
+
+    private void PackagesSelection_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PackagesViewModel.SelectedCount))
+        {
+            var app = (App)Application.Current;
+            App.Packages.SetSelectedCount(
+                app.InstalledPackages.SelectedCount + app.UpdatesPackages.SelectedCount);
+            UpdateStatusBar();
+        }
     }
 
     private void UpdateUpdatesBadge()
     {
         var count = App.Packages.UpdateCount;
         UpdatesBadge.Value = count;
-        UpdatesBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var visible = count > 0;
+        UpdatesBadge.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        // Pulso do badge: só quando visível e as animações do sistema estão ligadas.
+        var animationsEnabled = new UISettings().AnimationsEnabled;
+        if (visible && animationsEnabled)
+        {
+            _updatesBadgePulse?.Begin();
+        }
+        else
+        {
+            _updatesBadgePulse?.Stop();
+            UpdatesBadge.Opacity = 1;
+        }
+    }
+
+    private void UpdateStatusBar()
+    {
+        var packages = App.Packages;
+
+        StatusText.Text =
+            $"{packages.SelectedCount} selecionado(s) · {packages.PendingCount} " +
+            $"atualização{(packages.PendingCount == 1 ? string.Empty : "ões")} pendente(s)";
+
+        HealthStatusDot.Fill = packages.Health switch
+        {
+            PackageStore.WingetHealth.Healthy => (Brush)Application.Current.Resources["AsaUpdateBrush"],
+            PackageStore.WingetHealth.Degraded => (Brush)Application.Current.Resources["AsaCriticalBrush"],
+            _ => (Brush)Application.Current.Resources["AsaErrorBrush"],
+        };
     }
 
     private void Operations_PropertyChanged(object? sender, PropertyChangedEventArgs e)

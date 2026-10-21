@@ -4,6 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:helpers="using:Asa.Helpers">
 
+    <!-- Tokens visuais (fonte única de cores, fontes, escala e tipografia). -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Tokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <helpers:BoolToVisibilityConverter x:Key="BoolToVisibility" />
 
     <!--
@@ -113,4 +118,176 @@
         <Setter Property="Padding" Value="6,1" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!-- ==================== DICIONÁRIOS DE TEMA ==================== -->
+    <!--
+        Os valores abaixo espelham a paleta definida em Tokens.xaml para que os temas
+        Dark e HighContrast sejam autossuficientes. TODO(Fase R): consolidar aqui os
+        tokens que ainda vivem apenas no topo de Tokens.xaml e remover duplicação.
+    -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <!-- Cores -->
+            <Color x:Key="AsaSurfaceCanvasColor">#FF08090D</Color>
+            <Color x:Key="AsaSurfaceBaseColor">#FF111318</Color>
+            <Color x:Key="AsaSurfaceSunkenColor">#FF0C0E12</Color>
+            <Color x:Key="AsaSurfaceRailColor">#FF1A1C20</Color>
+            <Color x:Key="AsaSurfaceCardColor">#FF1E2024</Color>
+            <Color x:Key="AsaSurfaceHoverColor">#FF282A2E</Color>
+            <Color x:Key="AsaSurfaceActiveColor">#FF333539</Color>
+            <Color x:Key="AsaOutlineColor">#FF849495</Color>
+            <Color x:Key="AsaOutlineVariantColor">#FF3B494B</Color>
+
+            <Color x:Key="AsaTextPrimaryColor">#FFE2E2E8</Color>
+            <Color x:Key="AsaTextSecondaryColor">#FFB9CACB</Color>
+            <Color x:Key="AsaTextTertiaryColor">#FF94A3B8</Color>
+            <Color x:Key="AsaTextDisabledColor">#FF64748B</Color>
+
+            <Color x:Key="AsaActionColor">#FF00F0FF</Color>
+            <Color x:Key="AsaActionHoverColor">#FF7DF4FF</Color>
+            <Color x:Key="AsaActionPressedColor">#FF00DBE9</Color>
+            <Color x:Key="AsaOnActionColor">#FF002022</Color>
+
+            <Color x:Key="AsaUpdateColor">#FF00E575</Color>
+            <Color x:Key="AsaUpdateBrightColor">#FF62FF96</Color>
+            <Color x:Key="AsaOnUpdateColor">#FF00210B</Color>
+
+            <Color x:Key="AsaCriticalColor">#FFD946EF</Color>
+            <Color x:Key="AsaCriticalContainerColor">#FFFFC7FF</Color>
+            <Color x:Key="AsaOnCriticalColor">#FF36003E</Color>
+
+            <Color x:Key="AsaErrorColor">#FFFFB4AB</Color>
+            <Color x:Key="AsaErrorContainerColor">#FF93000A</Color>
+            <Color x:Key="AsaOnErrorColor">#FF690005</Color>
+            <Color x:Key="AsaOnErrorContainerColor">#FFFFDAD6</Color>
+
+            <Color x:Key="AsaFocusRingColor">#FF00F0FF</Color>
+
+            <!-- Pincéis -->
+            <SolidColorBrush x:Key="AsaSurfaceCanvasBrush" Color="#FF08090D" />
+            <SolidColorBrush x:Key="AsaSurfaceBaseBrush" Color="#FF111318" />
+            <SolidColorBrush x:Key="AsaSurfaceSunkenBrush" Color="#FF0C0E12" />
+            <SolidColorBrush x:Key="AsaSurfaceRailBrush" Color="#FF1A1C20" />
+            <SolidColorBrush x:Key="AsaSurfaceCardBrush" Color="#FF1E2024" />
+            <SolidColorBrush x:Key="AsaSurfaceHoverBrush" Color="#FF282A2E" />
+            <SolidColorBrush x:Key="AsaSurfaceActiveBrush" Color="#FF333539" />
+            <SolidColorBrush x:Key="AsaOutlineBrush" Color="#FF849495" />
+            <SolidColorBrush x:Key="AsaOutlineVariantBrush" Color="#FF3B494B" />
+
+            <SolidColorBrush x:Key="AsaTextPrimaryBrush" Color="#FFE2E2E8" />
+            <SolidColorBrush x:Key="AsaTextSecondaryBrush" Color="#FFB9CACB" />
+            <SolidColorBrush x:Key="AsaTextTertiaryBrush" Color="#FF94A3B8" />
+            <SolidColorBrush x:Key="AsaTextDisabledBrush" Color="#FF64748B" />
+
+            <SolidColorBrush x:Key="AsaActionBrush" Color="#FF00F0FF" />
+            <SolidColorBrush x:Key="AsaActionHoverBrush" Color="#FF7DF4FF" />
+            <SolidColorBrush x:Key="AsaActionPressedBrush" Color="#FF00DBE9" />
+            <SolidColorBrush x:Key="AsaOnActionBrush" Color="#FF002022" />
+
+            <SolidColorBrush x:Key="AsaUpdateBrush" Color="#FF00E575" />
+            <SolidColorBrush x:Key="AsaUpdateBrightBrush" Color="#FF62FF96" />
+            <SolidColorBrush x:Key="AsaOnUpdateBrush" Color="#FF00210B" />
+
+            <SolidColorBrush x:Key="AsaCriticalBrush" Color="#FFD946EF" />
+            <SolidColorBrush x:Key="AsaCriticalContainerBrush" Color="#FFFFC7FF" />
+            <SolidColorBrush x:Key="AsaOnCriticalBrush" Color="#FF36003E" />
+
+            <SolidColorBrush x:Key="AsaErrorBrush" Color="#FFFFB4AB" />
+            <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="#FF93000A" />
+            <SolidColorBrush x:Key="AsaOnErrorBrush" Color="#FF690005" />
+            <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="#FFFFDAD6" />
+
+            <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#29FFFFFF" />
+            <SolidColorBrush x:Key="AsaBorderHoverBrush" Color="#8000F0FF" />
+            <SolidColorBrush x:Key="AsaScrimCardBrush" Color="#BF18202C" />
+
+            <x:Double x:Key="AsaGlowOpacity">0.28</x:Double>
+
+            <!-- TODO(Fase R): tokens de cor específicos do shell R-1 que ainda não existem
+                 (ex.: AsaSidebarBadgePulseBrush, AsaActivityBarBrush) serão definidos na Fase R. -->
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="HighContrast">
+            <!-- Cores (alto contraste) -->
+            <Color x:Key="AsaSurfaceCanvasColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceBaseColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceSunkenColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceRailColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceCardColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceHoverColor">#FF000000</Color>
+            <Color x:Key="AsaSurfaceActiveColor">#FF000000</Color>
+            <Color x:Key="AsaOutlineColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaOutlineVariantColor">#FFFFFFFF</Color>
+
+            <Color x:Key="AsaTextPrimaryColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaTextSecondaryColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaTextTertiaryColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaTextDisabledColor">#FF808080</Color>
+
+            <Color x:Key="AsaActionColor">#FF00FFFF</Color>
+            <Color x:Key="AsaActionHoverColor">#FF00FFFF</Color>
+            <Color x:Key="AsaActionPressedColor">#FF00FFFF</Color>
+            <Color x:Key="AsaOnActionColor">#FF000000</Color>
+
+            <Color x:Key="AsaUpdateColor">#FF00FF00</Color>
+            <Color x:Key="AsaUpdateBrightColor">#FF00FF00</Color>
+            <Color x:Key="AsaOnUpdateColor">#FF000000</Color>
+
+            <Color x:Key="AsaCriticalColor">#FFFFFF00</Color>
+            <Color x:Key="AsaCriticalContainerColor">#FFFFFF00</Color>
+            <Color x:Key="AsaOnCriticalColor">#FF000000</Color>
+
+            <Color x:Key="AsaErrorColor">#FFFF0000</Color>
+            <Color x:Key="AsaErrorContainerColor">#FF000000</Color>
+            <Color x:Key="AsaOnErrorColor">#FF000000</Color>
+            <Color x:Key="AsaOnErrorContainerColor">#FFFFFFFF</Color>
+
+            <Color x:Key="AsaFocusRingColor">#FFFFFFFF</Color>
+
+            <!-- Pincéis -->
+            <SolidColorBrush x:Key="AsaSurfaceCanvasBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceBaseBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceSunkenBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceRailBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceCardBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceHoverBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaSurfaceActiveBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaOutlineBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaOutlineVariantBrush" Color="#FFFFFFFF" />
+
+            <SolidColorBrush x:Key="AsaTextPrimaryBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaTextSecondaryBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaTextTertiaryBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaTextDisabledBrush" Color="#FF808080" />
+
+            <SolidColorBrush x:Key="AsaActionBrush" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaActionHoverBrush" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaActionPressedBrush" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaOnActionBrush" Color="#FF000000" />
+
+            <SolidColorBrush x:Key="AsaUpdateBrush" Color="#FF00FF00" />
+            <SolidColorBrush x:Key="AsaUpdateBrightBrush" Color="#FF00FF00" />
+            <SolidColorBrush x:Key="AsaOnUpdateBrush" Color="#FF000000" />
+
+            <SolidColorBrush x:Key="AsaCriticalBrush" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaCriticalContainerBrush" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaOnCriticalBrush" Color="#FF000000" />
+
+            <SolidColorBrush x:Key="AsaErrorBrush" Color="#FFFF0000" />
+            <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaOnErrorBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="#FFFFFFFF" />
+
+            <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaBorderHoverBrush" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaScrimCardBrush" Color="#FF000000" />
+
+            <x:Double x:Key="AsaGlowOpacity">0</x:Double>
+
+            <!-- TODO(Fase R): tokens de alto contraste específicos do shell R-1 que ainda
+                 não existem serão definidos na Fase R. -->
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

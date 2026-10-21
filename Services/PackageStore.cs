@@ -6,6 +6,19 @@ namespace Asa.Services;
 public sealed class PackageStore
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(30);
+
+    /// <summary>Saúde do winget, usada para a cor do ponto de status da barra global.</summary>
+    public enum WingetHealth
+    {
+        /// <summary>winget respondeu e a última leitura foi bem-sucedida.</summary>
+        Healthy,
+
+        /// <summary>winget está presente, mas a leitura falhou ou ainda não ocorreu.</summary>
+        Degraded,
+
+        /// <summary>winget não está disponível.</summary>
+        Unhealthy
+    }
     private readonly WingetCli _winget;
     private readonly InstalledVersionResolver _versionResolver;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -29,11 +42,44 @@ public sealed class PackageStore
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Count();
 
+    /// <summary>Atualizações pendentes no catálogo do winget (mesmo valor de <see cref="UpdateCount"/>).</summary>
+    public int PendingCount => UpdateCount;
+
     public IReadOnlySet<string> InstalledIds => Installed
         .Select(package => package.Id)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Total de itens selecionados nas listas Instalados e Atualizações.</summary>
+    public int SelectedCount { get; private set; }
+
+    /// <summary>Saúde do winget, usada para a cor do ponto de status da barra global.</summary>
+    public WingetHealth Health { get; private set; } = WingetHealth.Degraded;
+
     public event EventHandler? Changed;
+
+    /// <summary>Atualiza a contagem de seleção agregada das duas listas de pacotes.</summary>
+    public void SetSelectedCount(int value)
+    {
+        if (SelectedCount == value)
+        {
+            return;
+        }
+
+        SelectedCount = value;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Atualiza a saúde do winget reportada pela janela principal.</summary>
+    public void SetHealth(WingetHealth health)
+    {
+        if (Health == health)
+        {
+            return;
+        }
+
+        Health = health;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public async Task RefreshAsync(bool force = false)
     {

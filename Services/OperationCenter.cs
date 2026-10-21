@@ -361,96 +361,125 @@ public sealed partial class OperationCenter : ObservableObject
             {
                 if (operation.Kind == PackageOperationKind.Upgrade)
                 {
-                    RunningAppUsage? usage = null;
                     try
                     {
-                        usage = await _runningApps.DetectAsync(operation.Name, operation.Id);
-                    }
-                    catch (Exception exception)
-                    {
-                        AddLog($"Não foi possível verificar aplicativos em execução: {exception.Message}");
-                    }
-
-                    if (usage is { HasBlockers: true })
-                    {
-                        AddLog($"Em execução: {DescribeBlockers(usage)}.");
-
-                        if (usage.HasCriticalProcesses)
+                        RunningAppUsage? usage = null;
+                        try
                         {
-                            skipped = true;
-                            AddLog("Atualização ignorada: um processo crítico do Windows usa este pacote.");
+                            // Cancelado antes da detecção: nem varre os processos em execução.
+                            operationCts.Token.ThrowIfCancellationRequested();
+
+                            usage = await _runningApps.DetectAsync(operation.Name, operation.Id, operationCts.Token);
+
+                            // Cancelado durante a detecção: não abrir o diálogo de confirmação
+                            // de uma operação que já foi cancelada.
+                            operationCts.Token.ThrowIfCancellationRequested();
                         }
-                        else
+                        catch (OperationCanceledException)
                         {
-                            ActivityTitle = $"Aguardando confirmação — {operation.Name}";
-                            ActivityDetail = "O aplicativo está aberto e precisa ser fechado.";
+                            throw;
+                        }
+                        catch (Exception exception)
+                        {
+                            AddLog($"Não foi possível verificar aplicativos em execução: {exception.Message}");
+                        }
 
-                            var approved = false;
-                            if (ConfirmCloseRunningApp is not null)
-                            {
-                                try
-                                {
-                                    approved = await ConfirmCloseRunningApp(usage);
-                                }
-                                catch (Exception exception)
-                                {
-                                    AddLog($"Falha ao exibir a confirmação: {exception.Message}");
-                                }
-                            }
+                        if (usage is { HasBlockers: true })
+                        {
+                            AddLog($"Em execução: {DescribeBlockers(usage)}.");
 
-                            if (!approved)
+                            if (usage.HasCriticalProcesses)
                             {
                                 skipped = true;
-                                AddLog("Atualização ignorada: o aplicativo permaneceu aberto.");
+                                AddLog("Atualização ignorada: um processo crítico do Windows usa este pacote.");
                             }
                             else
                             {
-                                ActivityTitle = $"Fechando {operation.Name}…";
-                                ActivityDetail = "Aguardando os processos e serviços encerrarem.";
+                                ActivityTitle = $"Aguardando confirmação — {operation.Name}";
+                                ActivityDetail = "O aplicativo está aberto e precisa ser fechado.";
 
-                                RunningAppCloseResult? closeResult = null;
-                                try
+                                var approved = false;
+                                if (ConfirmCloseRunningApp is not null)
                                 {
-                                    closeResult = await _runningApps.CloseAsync(usage);
-                                }
-                                catch (Exception exception)
-                                {
-                                    AddLog($"Falha ao fechar o aplicativo: {exception.Message}");
-                                }
-
-                                if (closeResult is not null)
-                                {
-                                    stoppedServices.AddRange(closeResult.StoppedServices);
-                                    explorerClosed = closeResult.ExplorerClosed;
-
-                                    foreach (var service in closeResult.StoppedServices)
+                                    try
                                     {
-                                        AddLog($"Serviço parado: {service}.");
+                                        approved = await ConfirmCloseRunningApp(usage);
                                     }
-
-                                    if (!closeResult.Success)
+                                    catch (Exception exception)
                                     {
-                                        foreach (var failure in closeResult.Failures)
-                                        {
-                                            AddLog($"Não foi possível fechar: {failure}.");
-                                        }
-
-                                        skipped = true;
-                                        AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
+                                        AddLog($"Falha ao exibir a confirmação: {exception.Message}");
                                     }
+                                }
+
+                                // Cancelado enquanto o diálogo estava aberto: não fechar
+                                // aplicativos de uma operação que já foi cancelada.
+                                operationCts.Token.ThrowIfCancellationRequested();
+
+                                if (!approved)
+                                {
+                                    skipped = true;
+                                    AddLog("Atualização ignorada: o aplicativo permaneceu aberto.");
                                 }
                                 else
                                 {
-                                    skipped = true;
-                                    AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
-                                }
+                                    ActivityTitle = $"Fechando {operation.Name}…";
+                                    ActivityDetail = "Aguardando os processos e serviços encerrarem.";
 
-                                if (!skipped)
-                                {
-                                    AddLog("Aplicativo liberado para atualização.");
+                                    RunningAppCloseResult? closeResult = null;
+                                    try
+                                    {
+                                        closeResult = await _runningApps.CloseAsync(usage, operationCts.Token);
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        throw;
+                                    }
+                                    catch (Exception exception)
+                                    {
+                                        AddLog($"Falha ao fechar o aplicativo: {exception.Message}");
+                                    }
+
+                                    if (closeResult is not null)
+                                    {
+                                        stoppedServices.AddRange(closeResult.StoppedServices);
+                                        explorerClosed = closeResult.ExplorerClosed;
+
+                                        foreach (var service in closeResult.StoppedServices)
+                                        {
+                                            AddLog($"Serviço parado: {service}.");
+                                        }
+
+                                        if (!closeResult.Success)
+                                        {
+                                            foreach (var failure in closeResult.Failures)
+                                            {
+                                                AddLog($"Não foi possível fechar: {failure}.");
+                                            }
+
+                                            skipped = true;
+                                            AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        skipped = true;
+                                        AddLog("Atualização ignorada: não foi possível liberar o aplicativo.");
+                                    }
+
+                                    if (!skipped)
+                                    {
+                                        AddLog("Aplicativo liberado para atualização.");
+                                    }
                                 }
                             }
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancelamento na fase de guarda (detecção/fechamento): o item segue
+                        // pelo caminho de cancelamento já existente — "skipped" e "result"
+                        // continuam vazios, então fica Canceled sem contar como falha, e o
+                        // finally acima ainda reinicia os serviços que foram parados.
                     }
                 }
 

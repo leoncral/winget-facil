@@ -3,62 +3,146 @@
     x:Class="Asa.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:d="http://schemas.microsoft.com/winfx/2006/xaml/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Grid x:Name="RootGrid" Background="Transparent">
+        <Grid.Resources>
+            <!-- Pulso do badge "Atualizações": 1 → 0,75 → 1 em 1,6 s, no máximo 3 ciclos. -->
+            <Storyboard x:Key="UpdatesBadgePulse">
+                <DoubleAnimationUsingKeyFrames
+                    Storyboard.TargetName="UpdatesBadge"
+                    Storyboard.TargetProperty="Opacity"
+                    Duration="0:0:1.6"
+                    RepeatBehavior="3x">
+                    <LinearDoubleKeyFrame KeyTime="0:0:0" Value="1" />
+                    <LinearDoubleKeyFrame KeyTime="0:0:0.8" Value="0.75" />
+                    <LinearDoubleKeyFrame KeyTime="0:0:1.6" Value="1" />
+                </DoubleAnimationUsingKeyFrames>
+            </Storyboard>
+        </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="{StaticResource AsaTitleBarGridLength}" />
+            <RowDefinition Height="{StaticResource AsaActivityBarGridLength}" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="{StaticResource AsaStatusBarGridLength}" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="AppTitleBar" Height="48" Background="Transparent">
-            <StackPanel
-                Orientation="Horizontal"
-                Spacing="9"
-                Margin="16,0,0,0"
-                VerticalAlignment="Center">
-                <Image
-                    Source="ms-appx:///Assets/Asa.png"
-                    Width="20"
-                    Height="20"
-                    VerticalAlignment="Center" />
-                <TextBlock
-                    Text="Asa"
-                    FontSize="13"
-                    FontWeight="SemiBold"
-                    VerticalAlignment="Center"
-                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                <Border
-                    Background="{ThemeResource ControlFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="5"
-                    Padding="6,1"
+        <!-- ==================== TITLE BAR (48 px) ====================
+             Arrastre da janela: SetTitleBar(AppTitleBar) em MainWindow.xaml.cs. -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="{StaticResource AsaTitleBarHeight}"
+              Background="{ThemeResource AsaSurfaceRailBrush}" ColumnSpacing="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Pill "Asa" à esquerda. -->
+            <Border Grid.Column="0"
+                    Background="{ThemeResource AsaSurfaceActiveBrush}"
+                    CornerRadius="{StaticResource AsaRadiusFull}"
+                    Padding="10,2"
+                    Margin="16,0,0,0"
                     VerticalAlignment="Center">
-                    <TextBlock
-                        Text="winget fácil"
-                        FontSize="10"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </Border>
-            </StackPanel>
+                <TextBlock Text="Asa"
+                           FontFamily="{StaticResource AsaFontSpaceGroteskBold}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="{ThemeResource AsaTextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+            </Border>
+
+            <!-- Área de arrastre (centro, expande com a janela). -->
+            <Grid Grid.Column="1" Background="Transparent" />
+
+            <!-- Badge "WINGET FACIL" à direita. -->
+            <Border Grid.Column="2"
+                    Background="{ThemeResource AsaCriticalContainerBrush}"
+                    Opacity="0.2"
+                    CornerRadius="{StaticResource AsaRadiusSm}"
+                    Padding="8,2"
+                    Margin="0,0,16,0"
+                    VerticalAlignment="Center"
+                    ToolTipService.ToolTip="winget fácil">
+                <TextBlock Text="WINGET FACIL"
+                           FontFamily="{StaticResource AsaFontMonoSemiBold}"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           CharacterSpacing="40"
+                           Foreground="{ThemeResource AsaOnCriticalBrush}"
+                           VerticalAlignment="Center"
+                           TextWrapping="NoWrap" />
+            </Border>
         </Grid>
 
-        <NavigationView
-            x:Name="NavView"
-            Grid.Row="1"
-            Background="Transparent"
-            IsBackButtonVisible="Collapsed"
-            IsSettingsVisible="True"
-            IsPaneOpen="True"
-            PaneDisplayMode="Auto"
-            CompactModeThresholdWidth="680"
-            ExpandedModeThresholdWidth="960"
-            OpenPaneLength="224"
-            CompactPaneLength="50"
-            SelectionChanged="NavView_SelectionChanged">
+        <!-- ==================== BARRA DE ATIVIDADE (56 px) ====================
+             Fixa no topo da área de conteúdo (Grid.Row="1"). -->
+        <Border x:Name="ActivityBar" Grid.Row="1" Height="{StaticResource AsaActivityBarHeight}"
+                Background="{ThemeResource AsaSurfaceSunkenBrush}"
+                BorderBrush="{ThemeResource AsaOutlineBrush}"
+                BorderThickness="0,0,0,1"
+                Visibility="Collapsed"
+                AutomationProperties.LiveSetting="Polite"
+                AutomationProperties.Name="Barra de atividade">
+            <Grid Padding="12,0,12,0" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid VerticalAlignment="Center">
+                    <ProgressRing x:Name="ActivityProgress" Width="18" Height="18" IsActive="True" />
+                    <FontIcon x:Name="ActivityStatusIcon" Glyph="&#xE73E;" FontSize="16"
+                              Visibility="Collapsed"
+                              Foreground="{ThemeResource AsaActionBrush}" />
+                </Grid>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock x:Name="ActivityTitle" Style="{StaticResource AsaBodyMdTextStyle}"
+                               FontFamily="{StaticResource AsaFontJakartaSemiBold}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ActivityDetail" Style="{StaticResource AsaBodySmTextStyle}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTipService.ToolTip="Detalhes da operação" />
+                </StackPanel>
+
+                <Button x:Name="ActivityCancelButton" Grid.Column="2" Content="Cancelar"
+                        Padding="10,6" VerticalAlignment="Center" Visibility="Collapsed"
+                        AutomationProperties.Name="Cancelar operação"
+                        Click="ActivityCancel_Click" />
+                <HyperlinkButton x:Name="ActivityLogButton" Grid.Column="3" Content="Log"
+                                 Padding="8,6" VerticalAlignment="Center"
+                                 Click="ActivityLog_Click" />
+                <Button x:Name="ActivityCloseButton" Grid.Column="4" Width="28" Height="28"
+                        Padding="0" Background="Transparent" BorderThickness="0"
+                        CornerRadius="{StaticResource AsaRadiusSm}"
+                        ToolTipService.ToolTip="Fechar"
+                        AutomationProperties.Name="Fechar painel de atividade"
+                        Click="ActivityClose_Click">
+                    <FontIcon Glyph="&#xE711;" FontSize="11" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ==================== ÁREA DE CONTEÚDO (sidebar + frame) ====================
+             NavigationView colapsa nativamente para 64 px quando Window.Width < 1040
+             (PaneDisplayMode="Auto" + CompactModeThresholdWidth). -->
+        <NavigationView x:Name="NavView" Grid.Row="2"
+                        Background="Transparent"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        IsPaneOpen="True"
+                        PaneDisplayMode="Auto"
+                        OpenPaneLength="{StaticResource AsaSidebarWidth}"
+                        CompactPaneLength="{StaticResource AsaSidebarWidthCompact}"
+                        CompactModeThresholdWidth="{StaticResource AsaSidebarCollapseThreshold}"
+                        SelectionChanged="NavView_SelectionChanged">
 
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="DiscoverNav" Content="Descobrir" Tag="discover">
@@ -76,11 +160,17 @@
                         <FontIcon Glyph="&#xE895;" />
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.InfoBadge>
-                        <InfoBadge
-                            x:Name="UpdatesBadge"
-                            Value="0"
-                            Visibility="Collapsed"
-                            ToolTipService.ToolTip="Atualizações disponíveis" />
+                        <InfoBadge x:Name="UpdatesBadge" Value="0" Visibility="Collapsed"
+                                   ToolTipService.ToolTip="Atualizações disponíveis" />
+                    </NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="HistoricoNav" Content="Histórico" Tag="historico">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE748;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.InfoBadge>
+                        <InfoBadge Value="0" Visibility="Collapsed"
+                                   ToolTipService.ToolTip="Histórico" />
                     </NavigationViewItem.InfoBadge>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
@@ -91,29 +181,23 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Border
-                        Height="1"
-                        Background="{ThemeResource DividerStrokeColorDefaultBrush}"
-                        Margin="4,0,4,10" />
+                    <Border Height="1"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Margin="4,0,4,10" />
                     <Grid Grid.Row="1" ColumnSpacing="8" Margin="6,0,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Ellipse
-                            x:Name="WingetStatusDot"
-                            Width="7"
-                            Height="7"
-                            Fill="{ThemeResource SystemFillColorSuccessBrush}"
-                            VerticalAlignment="Center" />
-                        <TextBlock
-                            x:Name="WingetStatusText"
-                            Grid.Column="1"
-                            Text="Conectando ao winget…"
-                            FontSize="11"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            TextTrimming="CharacterEllipsis"
-                            VerticalAlignment="Center" />
+                        <Ellipse x:Name="WingetStatusDot" Width="7" Height="7"
+                                 Fill="{ThemeResource AsaUpdateBrush}"
+                                 VerticalAlignment="Center" />
+                        <TextBlock x:Name="WingetStatusText" Grid.Column="1"
+                                   Text="Conectando ao winget…"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource AsaTextSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
                     </Grid>
                 </Grid>
             </NavigationView.PaneFooter>
@@ -124,14 +208,13 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <InfoBar
-                    x:Name="WingetMissingBar"
-                    Margin="24,12,24,0"
-                    IsOpen="False"
-                    IsClosable="True"
-                    Severity="Error"
-                    Title="O winget não foi encontrado"
-                    Message="Instale o App Installer da Microsoft para pesquisar, instalar e atualizar programas.">
+                <InfoBar x:Name="WingetMissingBar"
+                         Margin="24,12,24,0"
+                         IsOpen="False"
+                         IsClosable="True"
+                         Severity="Error"
+                         Title="O winget não foi encontrado"
+                         Message="Instale o App Installer da Microsoft para pesquisar, instalar e atualizar programas.">
                     <InfoBar.ActionButton>
                         <Button Content="Obter o winget" Click="GetWinget_Click" />
                     </InfoBar.ActionButton>
@@ -141,81 +224,31 @@
             </Grid>
         </NavigationView>
 
-        <Border
-            x:Name="ActivityBar"
-            Grid.Row="2"
-            Background="{ThemeResource LayerFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
-            BorderThickness="0,1,0,0"
-            Visibility="Collapsed">
-            <Grid Padding="16,7" ColumnSpacing="10">
+        <!-- ==================== BARRA DE STATUS GLOBAL (32 px) ====================
+             Presa na base da janela (Grid.Row="3"). -->
+        <Border x:Name="StatusBar" Grid.Row="3"
+                Background="{ThemeResource AsaSurfaceRailBrush}"
+                BorderBrush="{ThemeResource AsaOutlineBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid Padding="12,0" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="22" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Grid VerticalAlignment="Center">
-                    <ProgressRing
-                        x:Name="ActivityProgress"
-                        Width="18"
-                        Height="18"
-                        IsActive="True" />
-                    <FontIcon
-                        x:Name="ActivityStatusIcon"
-                        Glyph="&#xE73E;"
-                        FontSize="15"
-                        Visibility="Collapsed"
-                        Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
-                </Grid>
+                <!-- Ponto de saúde (AsaUpdate / AsaCritical / AsaError). -->
+                <Ellipse x:Name="HealthStatusDot" Grid.Column="0" Width="7" Height="7"
+                         Fill="{ThemeResource AsaUpdateBrush}"
+                         VerticalAlignment="Center" />
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                    <TextBlock
-                        x:Name="ActivityTitle"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        TextTrimming="CharacterEllipsis" />
-                    <TextBlock
-                        x:Name="ActivityDetail"
-                        FontSize="11"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextTrimming="CharacterEllipsis" />
-                </StackPanel>
+                <TextBlock Grid.Column="1" Style="{StaticResource AsaBodySmTextStyle}"
+                           VerticalAlignment="Center" />
 
-                <!-- TODO(Fase R / R-1): estética do botão Cancelar (seguir o padrão visual
-                     da barra de atividade; hoje herda o estilo padrão de Button). -->
-                <Button
-                    x:Name="ActivityCancelButton"
-                    Grid.Column="2"
-                    Content="Cancelar"
-                    Padding="10,4"
-                    VerticalAlignment="Center"
-                    Visibility="Collapsed"
-                    AutomationProperties.Name="Cancelar operação"
-                    Click="ActivityCancel_Click" />
-                <HyperlinkButton
-                    x:Name="ActivityLogButton"
-                    Grid.Column="3"
-                    Content="Detalhes"
-                    Padding="8,4"
-                    VerticalAlignment="Center"
-                    Click="ActivityLog_Click" />
-                <Button
-                    x:Name="ActivityCloseButton"
-                    Grid.Column="4"
-                    Width="28"
-                    Height="28"
-                    Padding="0"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    CornerRadius="7"
-                    ToolTipService.ToolTip="Fechar"
-                    AutomationProperties.Name="Fechar painel de atividade"
-                    Click="ActivityClose_Click">
-                    <FontIcon Glyph="&#xE711;" FontSize="11" />
-                </Button>
+                <TextBlock x:Name="StatusText" Grid.Column="2"
+                           Style="{StaticResource AsaBodySmTextStyle}"
+                           VerticalAlignment="Center"
+                           TextWrapping="NoWrap" />
             </Grid>
         </Border>
     </Grid>

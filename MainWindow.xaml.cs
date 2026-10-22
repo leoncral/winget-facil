@@ -343,8 +343,25 @@ public sealed partial class MainWindow : Window
 
         ActivityTitle.Text = operations.ActivityTitle;
         ActivityDetail.Text = operations.ActivityDetail;
-        ActivityProgress.IsActive = operations.IsBusy;
-        ActivityProgress.Visibility = operations.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+
+        // Progresso determinado (ProgressPercent com valor) ou indeterminado (ProgressRing).
+        if (operations.ProgressPercent is { } percent)
+        {
+            ActivityProgressBar.Visibility = Visibility.Visible;
+            ActivityProgressText.Visibility = Visibility.Visible;
+            ActivityProgressBar.Value = percent;
+            ActivityProgressText.Text = $"{percent}%";
+            ActivityProgress.Visibility = Visibility.Collapsed;
+            ActivityProgress.IsActive = false;
+        }
+        else
+        {
+            ActivityProgressBar.Visibility = Visibility.Collapsed;
+            ActivityProgressText.Visibility = Visibility.Collapsed;
+            ActivityProgress.Visibility = operations.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+            ActivityProgress.IsActive = operations.IsBusy;
+        }
+
         ActivityStatusIcon.Visibility = operations.IsBusy ? Visibility.Collapsed : Visibility.Visible;
         ActivityStatusIcon.Glyph = operations.HasError ? "\uE783" : operations.HasWarning ? "\uE7BA" : "\uE73E";
         ActivityStatusIcon.Foreground = operations.HasError

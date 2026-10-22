@@ -93,6 +93,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Grid VerticalAlignment="Center">
@@ -112,14 +113,24 @@
                                ToolTipService.ToolTip="Detalhes da operação" />
                 </StackPanel>
 
-                <Button x:Name="ActivityCancelButton" Grid.Column="2" Content="Cancelar"
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4"
+                            Orientation="Horizontal">
+                    <ProgressBar x:Name="ActivityProgressBar" Width="96" Height="12"
+                                 Visibility="Collapsed" />
+                    <TextBlock x:Name="ActivityProgressText" Style="{StaticResource AsaBodySmTextStyle}"
+                               Foreground="{ThemeResource AsaActionBrush}"
+                               Visibility="Collapsed"
+                               TextWrapping="NoWrap" />
+                </StackPanel>
+
+                <Button x:Name="ActivityCancelButton" Grid.Column="3" Content="Cancelar"
                         Padding="10,6" VerticalAlignment="Center" Visibility="Collapsed"
                         AutomationProperties.Name="Cancelar operação"
                         Click="ActivityCancel_Click" />
-                <HyperlinkButton x:Name="ActivityLogButton" Grid.Column="3" Content="Log"
+                <HyperlinkButton x:Name="ActivityLogButton" Grid.Column="4" Content="Log"
                                  Padding="8,6" VerticalAlignment="Center"
                                  Click="ActivityLog_Click" />
-                <Button x:Name="ActivityCloseButton" Grid.Column="4" Width="28" Height="28"
+                <Button x:Name="ActivityCloseButton" Grid.Column="5" Width="28" Height="28"
                         Padding="0" Background="Transparent" BorderThickness="0"
                         CornerRadius="{StaticResource AsaRadiusSm}"
                         ToolTipService.ToolTip="Fechar"

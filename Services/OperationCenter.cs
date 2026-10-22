@@ -12,11 +12,15 @@ public sealed partial class OperationCenter : ObservableObject
     private readonly WingetCli _winget;
     private readonly SettingsStore _settings;
     private readonly RunningAppGuard _runningApps;
+    private readonly HistoryStore _history;
     private readonly DispatcherQueue? _dispatcherQueue;
     private readonly Queue<PackageOperation> _queue = new();
     private readonly List<PackageOperation> _completedUpgrades = [];
     private readonly List<string> _log = [];
     private readonly object _logLock = new();
+    private readonly List<string> _canceledBeforeStart = [];
+    private int _canceledBeforeStartInstalls;
+    private int _canceledBeforeStartUpgrades;
     private PackageOperation? _current;
     private CancellationTokenSource? _operationCts;
     private bool _cancelRequested;
@@ -36,12 +40,18 @@ public sealed partial class OperationCenter : ObservableObject
     private int _batchSucceeded;
     private int _batchFailed;
     private int _batchSkipped;
+    private DateTimeOffset _batchStartTime;
 
-    public OperationCenter(WingetCli winget, SettingsStore settings, RunningAppGuard runningApps)
+    public OperationCenter(
+        WingetCli winget,
+        SettingsStore settings,
+        RunningAppGuard runningApps,
+        HistoryStore history)
     {
         _winget = winget;
         _settings = settings;
         _runningApps = runningApps;
+        _history = history;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
     }
 
@@ -203,9 +213,19 @@ public sealed partial class OperationCenter : ObservableObject
             _cancelRequested = true;
 
             // Itens que ainda não começaram nunca serão executados: voltam direto para Idle.
+            // Também contamos se eram instalações ou atualizações para o rótulo do lote misto.
             while (_queue.Count > 0)
             {
                 var pending = _queue.Dequeue();
+                _canceledBeforeStart.Add(pending.Id);
+                if (pending.Kind == PackageOperationKind.Install)
+                {
+                    _canceledBeforeStartInstalls++;
+                }
+                else if (pending.Kind == PackageOperationKind.Upgrade)
+                {
+                    _canceledBeforeStartUpgrades++;
+                }
                 RaiseItemState(pending, PackageOperationState.Canceled, string.Empty, canceledBeforeStart: true);
             }
 
@@ -313,6 +333,7 @@ public sealed partial class OperationCenter : ObservableObject
 
     private void ResetBatch()
     {
+        _batchStartTime = DateTimeOffset.Now;
         _batchTotal = 0;
         _batchDone = 0;
         _batchSucceeded = 0;
@@ -323,6 +344,9 @@ public sealed partial class OperationCenter : ObservableObject
         HasWarning = false;
         IsCanceledActivity = false;
         _cancelRequested = false;
+        _canceledBeforeStart.Clear();
+        _canceledBeforeStartInstalls = 0;
+        _canceledBeforeStartUpgrades = 0;
 
         lock (_logLock)
         {
@@ -348,10 +372,26 @@ public sealed partial class OperationCenter : ObservableObject
         // True quando a ÚLTIMA operação finalizada foi interrompida pelo usuário: a barra de
         // atividade mostra "Cancelado" em vez do resumo comum de concluído/falhou.
         var lastFinalizedCanceled = false;
+        // True se o cancelamento foi solicitado a qualquer momento durante o lote: mesmo que
+        // o último item tenha terminado com sucesso (corrida com o encerramento do winget),
+        // o lote foi cancelado e o resultado deve refletir isso.
+        var cancelRequestedDuringBatch = false;
+        var hasInstalls = false;
+        var hasUpgrades = false;
+        var processedIds = new List<string>();
 
         while (_queue.Count > 0)
         {
             var operation = _queue.Dequeue();
+            if (operation.Kind == PackageOperationKind.Install)
+            {
+                hasInstalls = true;
+            }
+            else if (operation.Kind == PackageOperationKind.Upgrade)
+            {
+                hasUpgrades = true;
+            }
+            processedIds.Add(operation.Id);
             _current = operation;
             _lastStatusUpdate = DateTimeOffset.MinValue;
             var position = _batchDone + 1;
@@ -557,6 +597,10 @@ public sealed partial class OperationCenter : ObservableObject
             // seguinte volta a valer para a próxima execução.
             var wasCanceled = _cancelRequested;
             _cancelRequested = false;
+            if (wasCanceled)
+            {
+                cancelRequestedDuringBatch = true;
+            }
 
             _batchDone++;
 
@@ -622,7 +666,51 @@ public sealed partial class OperationCenter : ObservableObject
         _current = null;
         IsBusy = false;
 
-        if (lastFinalizedCanceled)
+        // Itens cancelados antes de começar (dequeuados em CancelCurrentAsync) também fazem
+        // parte do lote e entram no histórico.
+        processedIds.AddRange(_canceledBeforeStart);
+
+        // Itens cancelados antes de começar também contam para decidir se o lote foi misto
+        // (instalação + atualização) e, portanto, qual rótulo usar no histórico.
+        if (_canceledBeforeStartInstalls > 0)
+        {
+            hasInstalls = true;
+        }
+        if (_canceledBeforeStartUpgrades > 0)
+        {
+            hasUpgrades = true;
+        }
+
+        // O lote é cancelado se o cancelamento foi solicitado a qualquer momento, mesmo que
+        // o último item tenha terminado com sucesso (corrida com o encerramento do winget).
+        var finalCanceled = lastFinalizedCanceled || cancelRequestedDuringBatch;
+
+        // F1-9: salva o lote no histórico sem bloquear o fluxo da UI.
+        var entry = new HistoryEntry
+        {
+            Timestamp = DateTimeOffset.Now,
+            Operation = hasInstalls && hasUpgrades
+                ? "Instalação e atualização"
+                : hasInstalls ? "Instalação"
+                : "Atualização",
+            ItemCount = _batchTotal,
+            Items = processedIds.ToArray(),
+            Result = finalCanceled
+                ? "Cancelado"
+                : _batchFailed > 0 && _batchSucceeded > 0
+                    ? "Parcial"
+                    : _batchFailed > 0
+                        ? "Falhou"
+                        : _batchSkipped > 0
+                            ? "Sucesso com itens ignorados"
+                            : "Sucesso",
+            Duration = DateTimeOffset.Now - _batchStartTime,
+            Source = "winget",
+            RawLog = GetLogText()
+        };
+        _ = _history.SaveBatchAsync(entry);
+
+        if (finalCanceled)
         {
             CompleteCanceledBatch();
         }

@@ -246,6 +246,49 @@ public sealed partial class WingetCli
     }
 
     /// <summary>
+    /// Executa <c>winget show --id &lt;id&gt; --exact</c> com as opções padrão de
+    /// não-interatividade. Útil para obter metadados sob demanda (ex.: tamanho do
+    /// download) sem lançar exceções quando o pacote não é encontrado.
+    /// </summary>
+    /// <param name="source">Origem opcional (ex.: "winget", "msstore"). Quando informado,
+    /// é passado como <c>--source</c> ao winget, evitando que a consulta devolva dados de
+    /// outra versão/origem.</param>
+    /// <param name="version">Versão opcional do pacote. Quando informada, é passada como
+    /// <c>--version</c> ao winget, fazendo com que a consulta devolva metadados dessa
+    /// versão específica.</param>
+    public Task<WingetCommandResult> ShowAsync(
+        string packageId,
+        string? source = null,
+        string? version = null,
+        CancellationToken cancellationToken = default)
+    {
+        var arguments = new List<string>
+        {
+            "show",
+            "--id",
+            packageId,
+            "--exact",
+            "--accept-source-agreements",
+            "--disable-interactivity",
+            "--nowarn"
+        };
+
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            arguments.Add("--source");
+            arguments.Add(source);
+        }
+
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            arguments.Add("--version");
+            arguments.Add(version);
+        }
+
+        return RunAsync(arguments, null, cancellationToken);
+    }
+
+    /// <summary>
     /// Encerra imediatamente o winget em execução lançado por esta instância, se houver,
     /// incluindo a árvore de processos filhos (instaladores iniciados por ele). A espera
     /// após o kill é limitada para não prender o chamador. Retorna false quando não há

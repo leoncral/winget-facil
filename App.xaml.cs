@@ -18,6 +18,8 @@ public partial class App : Application
 
     public static OperationCenter Operations { get; } = new(Winget, Settings, RunningApps);
 
+    public static CatalogService Catalog { get; } = new();
+
     // Escopo único: as páginas de lista compartilham estas instâncias para que seleção,
     // filtro e linhas sobrevivam a navegações (em vez de criar um ViewModel por página).
     public PackagesViewModel InstalledPackages { get; } = new(Packages, Operations, updatesOnlyMode: false);

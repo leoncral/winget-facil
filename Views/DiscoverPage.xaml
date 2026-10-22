@@ -69,41 +69,44 @@
                                Text="Busque no catálogo do winget, instale e mantenha tudo atualizado sem abrir o terminal."
                                TextWrapping="Wrap" />
 
-                    <!-- Campo de busca de 44 px + botão primário neon (AsaActionBrush / AsaOnActionBrush). -->
-                    <Border Margin="0,24,0,0" Height="44"
-                            CornerRadius="{StaticResource AsaRadiusDefault}"
-                            Background="{ThemeResource AsaSurfaceSunkenBrush}"
-                            BorderBrush="{ThemeResource AsaBorderControlBrush}" BorderThickness="1"
-                            Padding="12,0,8,0" HorizontalAlignment="Stretch" MaxWidth="640">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                    <!-- Campo de busca (44 px) + botão primário neon ao lado, separado por 10 px. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="10" Margin="0,24,0,0">
+                        <Border Height="44" Width="400" MaxWidth="400"
+                                CornerRadius="{StaticResource AsaRadiusDefault}"
+                                Background="{ThemeResource AsaSurfaceSunkenBrush}"
+                                BorderBrush="{ThemeResource AsaBorderControlBrush}" BorderThickness="1"
+                                Padding="12,0,8,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
 
-                            <FontIcon Glyph="&#xE721;" FontSize="16"
-                                      Foreground="{ThemeResource AsaTextTertiaryBrush}"
-                                      VerticalAlignment="Center" />
+                                <FontIcon Glyph="&#xE721;" FontSize="16"
+                                          Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                                          VerticalAlignment="Center" />
 
-                            <TextBox x:Name="SearchBox" Grid.Column="1" Height="44" Padding="0"
-                                     BorderThickness="0" Background="Transparent"
-                                     Foreground="{ThemeResource AsaTextPrimaryBrush}"
-                                     PlaceholderText="Buscar apps, ferramentas, jogos…"
-                                     PlaceholderForeground="{ThemeResource AsaTextTertiaryBrush}"
-                                     IsSpellCheckEnabled="False" IsTextPredictionEnabled="False"
-                                     TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
+                                <TextBox x:Name="SearchBox" Grid.Column="1" Height="44" Padding="0"
+                                         BorderThickness="0" Background="Transparent"
+                                         Foreground="{ThemeResource AsaTextPrimaryBrush}"
+                                         PlaceholderText="Buscar apps, ferramentas, jogos…"
+                                         PlaceholderForeground="{ThemeResource AsaTextTertiaryBrush}"
+                                         VerticalContentAlignment="Center"
+                                         IsSpellCheckEnabled="False" IsTextPredictionEnabled="False"
+                                         TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
+                            </Grid>
+                        </Border>
 
-                            <Button x:Name="SearchButton" Grid.Column="2" Content="BUSCAR" Height="44" MinWidth="100"
-                                    CornerRadius="{StaticResource AsaRadiusDefault}"
-                                    Background="{ThemeResource AsaActionBrush}"
-                                    Foreground="{ThemeResource AsaOnActionBrush}"
-                                    BorderThickness="0" Padding="22,0,22,0"
-                                    Click="SearchButton_Click"
-                                    FontFamily="{StaticResource AsaFontMonoSemiBold}"
-                                    FontSize="11" FontWeight="SemiBold" CharacterSpacing="40" />
-                        </Grid>
-                    </Border>
+                        <Button x:Name="SearchButton" Content="BUSCAR" Height="44" MinWidth="100"
+                                CornerRadius="{StaticResource AsaRadiusDefault}"
+                                Background="{ThemeResource AsaActionBrush}"
+                                Foreground="{ThemeResource AsaOnActionBrush}"
+                                BorderThickness="0" Padding="22,0,22,0"
+                                Click="SearchButton_Click"
+                                FontFamily="{StaticResource AsaFontMonoSemiBold}"
+                                FontSize="11" FontWeight="SemiBold" CharacterSpacing="40"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
 
                     <TextBlock Style="{StaticResource AsaLabelCodeTextStyle}"
                                Foreground="{ThemeResource AsaTextTertiaryBrush}"

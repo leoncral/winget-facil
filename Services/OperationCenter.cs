@@ -29,6 +29,8 @@ public sealed partial class OperationCenter : ObservableObject
     private bool _hasWarning;
     private string _activityTitle = string.Empty;
     private string _activityDetail = string.Empty;
+    private int? _progressPercent;
+    private OperationPhase _currentPhase;
     private int _batchTotal;
     private int _batchDone;
     private int _batchSucceeded;
@@ -87,6 +89,23 @@ public sealed partial class OperationCenter : ObservableObject
     {
         get => _activityDetail;
         private set => SetProperty(ref _activityDetail, value);
+    }
+
+    /// <summary>
+    /// Porcentagem de progresso da operação corrente (0–100). Null quando o winget não
+    /// reporta um % (indeterminado: ProgressRing continua ativo).
+    /// </summary>
+    public int? ProgressPercent
+    {
+        get => _progressPercent;
+        private set => SetProperty(ref _progressPercent, value);
+    }
+
+    /// <summary>Fase da operação corrente: Downloading, Installing, Verifying ou None.</summary>
+    public OperationPhase CurrentPhase
+    {
+        get => _currentPhase;
+        private set => SetProperty(ref _currentPhase, value);
     }
 
     public int PendingCount => _queue.Count + (_current is null ? 0 : 1);
@@ -496,6 +515,10 @@ public sealed partial class OperationCenter : ObservableObject
                     }
                     else
                     {
+                        // Novo item da operação: reseta progresso/fase antes de iniciar o winget.
+                        ProgressPercent = null;
+                        CurrentPhase = OperationPhase.None;
+
                         try
                         {
                             result = await _winget.ExecuteOperationAsync(
@@ -772,6 +795,35 @@ public sealed partial class OperationCenter : ObservableObject
         }
 
         ActivityDetail = line;
+
+        // Parse da linha do winget: extrai % (determinado) e identifica a fase da operação.
+        var lower = line.ToLowerInvariant();
+        if (lower.Contains('%') && PercentRegex().Match(line) is { Success: true } match &&
+            int.TryParse(match.Groups[1].Value, out var percent))
+        {
+            ProgressPercent = percent;
+            CurrentPhase = OperationPhase.Downloading;
+        }
+        else if (lower.Contains("baixando") || lower.Contains("downloading"))
+        {
+            CurrentPhase = OperationPhase.Downloading;
+            ProgressPercent = null;
+        }
+        else if (lower.Contains("instalando") || lower.Contains("installing"))
+        {
+            CurrentPhase = OperationPhase.Installing;
+            ProgressPercent = null;
+        }
+        else if (lower.Contains("verificando") || lower.Contains("verifying"))
+        {
+            CurrentPhase = OperationPhase.Verifying;
+            ProgressPercent = null;
+        }
+        else if (lower.Contains("concluído") || lower.Contains("completed"))
+        {
+            CurrentPhase = OperationPhase.None;
+            ProgressPercent = null;
+        }
     }
 
     private void AddLog(string line)
@@ -805,6 +857,18 @@ public sealed partial class OperationCenter : ObservableObject
 
     [GeneratedRegex(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")]
     private static partial Regex AnsiEscapeRegex();
+
+    [GeneratedRegex(@"(\d{1,3})%")]
+    private static partial Regex PercentRegex();
+}
+
+/// <summary>Fase da operação reportada pelo winget em cada linha de saída.</summary>
+public enum OperationPhase
+{
+    None,
+    Downloading,
+    Installing,
+    Verifying
 }
 
 /// <summary>Estado de um item dentro da fila do <see cref="OperationCenter"/>.</summary>

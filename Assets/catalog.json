@@ -1,0 +1,86 @@
+{
+  "categories": [
+    {
+      "key": "development",
+      "name": "Desenvolvimento",
+      "ids": [
+        "Git.Git",
+        "Nodejs.NodeJS.LTS",
+        "Python.Python.3.11",
+        "Microsoft.VisualStudio.2022.Community",
+        "JetBrains.IntelliJIDEA.Community",
+        "Docker.DockerDesktop",
+        "Postman.Postman",
+        "Microsoft.PowerToys"
+      ]
+    },
+    {
+      "key": "utilities",
+      "name": "Utilitários",
+      "ids": [
+        "7zip.7zip",
+        "Notepad++.Notepad++",
+        "OpenSSL.OpenSSL",
+        "Discord.Discord",
+        "Google.Chrome",
+        "Mozilla.Firefox"
+      ]
+    },
+    {
+      "key": "multimedia",
+      "name": "Multimídia",
+      "ids": [
+        "VideoLAN.VLC",
+        "Spotify.Spotify",
+        "OBS.OBSStudio",
+        "Audacity.Audacity",
+        "HandBrake.HandBrake",
+        "DaVinci.DaVinciResolve"
+      ]
+    },
+    {
+      "key": "games",
+      "name": "Jogos & Launchers",
+      "ids": [
+        "Valve.Steam",
+        "EpicGames.EpicGamesLauncher",
+        "RiotGames.RiotClient",
+        "Microsoft.XboxApp",
+        "GOG.com.Galaxy",
+        "Ubisoft.UbisoftConnect"
+      ]
+    }
+  ],
+  "security": [
+    {
+      "id": "OpenSSL.OpenSSL",
+      "reason": "Vulnerabilidade crítica que permite execução remota de código.",
+      "severity": "critica"
+    },
+    {
+      "id": "Git.Git",
+      "reason": "Falha de segurança que pode levar a execução de código arbitrário.",
+      "severity": "alta"
+    },
+    {
+      "id": "Nodejs.NodeJS.LTS",
+      "reason": "Vulnerabilidade de negação de serviço no runtime do Node.js.",
+      "severity": "alta"
+    },
+    {
+      "id": "Google.Chrome",
+      "reason": "Várias vulnerabilidades de corrupção de memória no navegador.",
+      "severity": "critica"
+    },
+    {
+      "id": "Mozilla.Firefox",
+      "reason": "Falhas de segurança que podem permitir execução remota de código.",
+      "severity": "critica"
+    },
+    {
+      "id": "MicrosoftEdge.Stable",
+      "reason": "Vulnerabilidades de execução remota de código no motor do navegador.",
+      "severity": "alta"
+    }
+  ]
+}

@@ -70,10 +70,18 @@ public sealed class InstalledPackage
         (DetectedVersionSource is InstalledVersionSource.FileMetadata or InstalledVersionSource.AppPath) &&
         VersionComparison.IsTrivialVersion(DetectedVersion ?? string.Empty);
 
+    /// <summary>
+    /// Indica se a atualização disponível é estável (não é uma versão de
+    /// pré-lançamento, como beta, rc, preview, insider, etc.).
+    /// Versões de pré-lançamento não são oferecidas como atualização.
+    /// </summary>
+    public bool IsStableUpdate => VersionComparison.IsStableVersion(AvailableVersion);
+
     public bool CanUpdate =>
         HasUpdate &&
         !string.IsNullOrWhiteSpace(Source) &&
-        !IsDetectedVersionCurrent;
+        !IsDetectedVersionCurrent &&
+        IsStableUpdate;
 
     public bool HasUnknownVersion => IsUnknown(EffectiveVersion);
 

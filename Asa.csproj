@@ -48,6 +48,9 @@
     <Content Include="Assets\Fonts\LICENSE-PlusJakartaSans.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Remove="Assets\Fonts\LICENSE-JetBrainsMono.txt" />
     <Content Include="Assets\Fonts\LICENSE-JetBrainsMono.txt" CopyToOutputDirectory="PreserveNewest" />
+
+    <None Remove="Assets\catalog.json" />
+    <Content Include="Assets\catalog.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Asa.Models;
 
@@ -191,6 +192,55 @@ public static class VersionComparison
         var trimmed = new int[length];
         Array.Copy(components, trimmed, length);
         return trimmed;
+    }
+
+    /// <summary>
+    /// Palavras-chave que indicam uma versão de pré-lançamento (beta, alpha, rc, etc.).
+    /// A detecção usa correspondência de palavra inteira: a palavra-chave deve estar
+    /// delimitada por caracteres não alfanuméricos (ou início/fim da string) e não
+    /// pode ser seguida por uma letra. Isso evita falsos positivos como "ea" dentro
+    /// de "release", "pre" dentro de "premium" e "rc" dentro de "architecture",
+    /// ao passo que ainda detecta "beta" em "6.0.0-beta4.1".
+    /// </summary>
+    private static readonly string[] PreReleaseKeywords =
+    {
+        "beta", "alpha", "rc", "preview", "insider", "dev", "nightly",
+        "canary", "ea", "pre", "prerelease", "pre-release", "snapshot", "milestone"
+    };
+
+    /// <summary>
+    /// Expressão regular que combina qualquer palavra-chave de pré-lançamento como
+    /// palavra inteira (case-insensitive, cultura invariante).
+    /// </summary>
+    private static readonly Regex PreReleaseRegex = new(
+        $"(?<![a-zA-Z0-9])(?:{string.Join("|", Array.ConvertAll(PreReleaseKeywords, Regex.Escape))})(?![a-zA-Z])",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Indica se a versão é de pré-lançamento, com base em correspondência de
+    /// palavra inteira das palavras-chave (beta, alpha, rc, preview, insider, dev,
+    /// nightly, canary, ea, pre, prerelease, pre-release, snapshot, milestone),
+    /// comparado de forma case-insensitive.
+    /// Retorna false quando a versão é null/vazia ou não contém nenhuma dessas
+    /// palavras como palavra inteira.
+    /// </summary>
+    public static bool IsPreRelease(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return false;
+        }
+
+        return PreReleaseRegex.IsMatch(version);
+    }
+
+    /// <summary>
+    /// Indica se a versão é estável, ou seja, não é de pré-lançamento.
+    /// Retorna true para versões null/vazias (não há indício de pré-lançamento).
+    /// </summary>
+    public static bool IsStableVersion(string? version)
+    {
+        return !IsPreRelease(version);
     }
 
     private static bool IsSameReleaseBuild(int[] installed, int[] available)

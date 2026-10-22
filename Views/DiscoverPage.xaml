@@ -15,74 +15,66 @@
         <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusSearch_Invoked" />
     </Page.KeyboardAccelerators>
 
-    <Grid Padding="32,22,32,0">
+    <Grid Padding="{StaticResource AsaMarginPage}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border
-            CornerRadius="18"
-            Padding="28,24"
-            MinHeight="192">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#0B7A75" Offset="0" />
-                    <GradientStop Color="#0A6698" Offset="0.5" />
-                    <GradientStop Color="#164C86" Offset="1" />
-                </LinearGradientBrush>
-            </Border.Background>
-
+        <!-- ==================== HERO ====================
+             Bloom radial (glow por camadas, sinal de ação) + gradiente HeroGradientBrush. -->
+        <Border Grid.Row="0"
+                Background="{StaticResource HeroGradientBrush}"
+                CornerRadius="{StaticResource AsaRadiusXl}"
+                Padding="32,28,32,24"
+                MinHeight="320">
             <Grid>
-                <Ellipse
-                    Width="300"
-                    Height="300"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,-40,-90,0"
-                    Fill="#16FFFFFF"
-                    IsHitTestVisible="False" />
-                <Ellipse
-                    Width="190"
-                    Height="190"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,30,25,0"
-                    Fill="#0FFFFFFF"
-                    IsHitTestVisible="False" />
-                <Image
-                    Source="ms-appx:///Assets/Asa.png"
-                    Width="150"
-                    Height="150"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,0,38,0"
-                    Opacity="0.16"
-                    IsHitTestVisible="False" />
+                <Ellipse Width="520" Height="520"
+                         HorizontalAlignment="Right" VerticalAlignment="Center"
+                         Margin="0,-60,-140,0"
+                         Opacity="{ThemeResource AsaGlowOpacity}"
+                         IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="{ThemeResource AsaActionColor}" Offset="0" />
+                            <GradientStop Color="Transparent" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
+                <Ellipse Width="340" Height="340"
+                         HorizontalAlignment="Right" VerticalAlignment="Center"
+                         Margin="0,40,30,0"
+                         Opacity="{ThemeResource AsaGlowOpacity}"
+                         IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="{ThemeResource AsaActionColor}" Offset="0" />
+                            <GradientStop Color="Transparent" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
 
-                <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-                    <TextBlock
-                        FontFamily="Segoe UI Variable Display"
-                        FontSize="31"
-                        FontWeight="SemiBold"
-                        Foreground="White"
-                        Text="Seu próximo app, a um clique."
-                        TextWrapping="Wrap" />
-                    <TextBlock
-                        Margin="0,7,0,0"
-                        FontSize="14"
-                        Foreground="#D9FFFFFF"
-                        Text="Busque no catálogo do winget, instale e mantenha tudo atualizado sem abrir o terminal."
-                        TextWrapping="Wrap" />
+                <Image Source="ms-appx:///Assets/Asa.png"
+                       Width="150" Height="150"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Margin="0,0,42,0"
+                       Opacity="0.16"
+                       IsHitTestVisible="False" />
 
-                    <Border
-                        Margin="0,19,0,0"
-                        MaxWidth="680"
-                        Height="50"
-                        CornerRadius="10"
-                        Background="#F5FFFFFF"
-                        Padding="13,0,5,0"
-                        HorizontalAlignment="Stretch">
+                <StackPanel MaxWidth="720" HorizontalAlignment="Left" Spacing="12">
+                    <TextBlock Style="{StaticResource AsaDisplayTextStyle}"
+                               Text="Seu próximo app, a um clique." />
+
+                    <TextBlock Style="{StaticResource AsaBodyLgTextStyle}"
+                               Text="Busque no catálogo do winget, instale e mantenha tudo atualizado sem abrir o terminal."
+                               TextWrapping="Wrap" />
+
+                    <!-- Campo de busca de 44 px + botão primário neon (AsaActionBrush / AsaOnActionBrush). -->
+                    <Border Margin="0,24,0,0" Height="44"
+                            CornerRadius="{StaticResource AsaRadiusDefault}"
+                            Background="{ThemeResource AsaSurfaceSunkenBrush}"
+                            BorderBrush="{ThemeResource AsaBorderControlBrush}" BorderThickness="1"
+                            Padding="12,0,8,0" HorizontalAlignment="Stretch" MaxWidth="640">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -90,343 +82,359 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <FontIcon
-                                Glyph="&#xE721;"
-                                FontSize="16"
-                                Foreground="#52606D"
-                                VerticalAlignment="Center" />
+                            <FontIcon Glyph="&#xE721;" FontSize="16"
+                                      Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                                      VerticalAlignment="Center" />
 
-                            <TextBox
-                                x:Name="SearchBox"
-                                Grid.Column="1"
-                                Height="44"
-                                Margin="8,0,8,0"
-                                Padding="0"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                FontSize="15"
-                                Foreground="#1B1B1B"
-                                PlaceholderText="Buscar apps, ferramentas, jogos…"
-                                PlaceholderForeground="#727B84"
-                                IsSpellCheckEnabled="False"
-                                IsTextPredictionEnabled="False"
-                                TextChanged="SearchBox_TextChanged"
-                                KeyDown="SearchBox_KeyDown">
-                                <TextBox.Resources>
-                                    <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
-                                    <SolidColorBrush x:Key="TextControlForeground" Color="#1B1B1B" />
-                                    <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#1B1B1B" />
-                                    <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#1B1B1B" />
-                                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#727B84" />
-                                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#727B84" />
-                                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#727B84" />
-                                </TextBox.Resources>
-                            </TextBox>
+                            <TextBox x:Name="SearchBox" Grid.Column="1" Height="44" Padding="0"
+                                     BorderThickness="0" Background="Transparent"
+                                     Foreground="{ThemeResource AsaTextPrimaryBrush}"
+                                     PlaceholderText="Buscar apps, ferramentas, jogos…"
+                                     PlaceholderForeground="{ThemeResource AsaTextTertiaryBrush}"
+                                     IsSpellCheckEnabled="False" IsTextPredictionEnabled="False"
+                                     TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
 
-                            <Button
-                                x:Name="SearchButton"
-                                Grid.Column="2"
-                                Content="Buscar"
-                                Height="38"
-                                MinWidth="84"
-                                VerticalAlignment="Center"
-                                CornerRadius="8"
-                                Background="#0F5FA6"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Click="SearchButton_Click" />
+                            <Button x:Name="SearchButton" Grid.Column="2" Content="BUSCAR" Height="44" MinWidth="100"
+                                    CornerRadius="{StaticResource AsaRadiusDefault}"
+                                    Background="{ThemeResource AsaActionBrush}"
+                                    Foreground="{ThemeResource AsaOnActionBrush}"
+                                    BorderThickness="0" Padding="22,0,22,0"
+                                    Click="SearchButton_Click"
+                                    FontFamily="{StaticResource AsaFontMonoSemiBold}"
+                                    FontSize="11" FontWeight="SemiBold" CharacterSpacing="40" />
                         </Grid>
                     </Border>
 
-                    <TextBlock
-                        Margin="4,9,0,0"
-                        FontSize="11"
-                        Foreground="#AFFFFFFF"
-                        Text="Enter para buscar · Ctrl+F para focar na busca" />
+                    <TextBlock Style="{StaticResource AsaLabelCodeTextStyle}"
+                               Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                               TextWrapping="Wrap">
+                        <Run Text="Enter para buscar · " />
+                        <Run Text="Ctrl+F" Foreground="{ThemeResource AsaTextDisabledBrush}" />
+                        <Run Text=" para focar na busca" />
+                    </TextBlock>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="0,18,0,0">
-            <ScrollViewer
-                Visibility="{x:Bind ViewModel.ShowWelcome, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                VerticalScrollBarVisibility="Auto"
-                HorizontalScrollMode="Disabled"
-                Padding="0,0,0,24">
-                <StackPanel Spacing="16">
-                    <StackPanel Spacing="9">
-                        <TextBlock Text="Buscas populares" Style="{StaticResource SectionTitleTextStyle}" />
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.Suggestions}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button
-                                        Content="{Binding}"
-                                        Tag="{Binding}"
-                                        Style="{StaticResource ChipButtonStyle}"
-                                        Click="Suggestion_Click" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+        <!-- ==================== CONTEÚDO ROLÁVEL ==================== -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Disabled"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,20,0,28">
+            <StackPanel Spacing="24">
+
+                <!-- Estado inicial (antes de qualquer busca): chips, cards e categorias. -->
+                <StackPanel Visibility="{x:Bind ViewModel.ShowWelcome, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                            Spacing="24">
+
+                    <!-- Buscas populares: chips com wrap (sem linha horizontal fixa). -->
+                    <StackPanel Spacing="12">
+                        <TextBlock Style="{StaticResource AsaHeadlineMdTextStyle}" Text="Buscas populares" />
+                        <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Suggestions, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ItemsWrapGrid Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Button Content="{x:Bind}" Tag="{x:Bind}"
+                                                Style="{StaticResource ChipButtonStyle}"
+                                                Click="Suggestion_Click" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </StackPanel>
 
-                    <Grid ColumnSpacing="12">
+                    <!-- 3 cards de benefício (reutilizam CardBorderStyle). -->
+                    <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16">
-                            <StackPanel Spacing="9">
-                                <Border
-                                    Width="34"
-                                    Height="34"
-                                    CornerRadius="9"
-                                    Background="{ThemeResource AccentFillColorTertiaryBrush}">
-                                    <FontIcon
-                                        Glyph="&#xE7B8;"
-                                        FontSize="15"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="20">
+                            <StackPanel Spacing="12">
+                                <Border Width="34" Height="34" CornerRadius="{StaticResource AsaRadiusDefault}"
+                                        Background="{ThemeResource AsaSurfaceHoverBrush}">
+                                    <FontIcon Glyph="&#xE7B8;" FontSize="15" HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" Foreground="{ThemeResource AsaTextPrimaryBrush}" />
                                 </Border>
-                                <TextBlock Text="Catálogo completo" FontSize="13" FontWeight="SemiBold" />
-                                <TextBlock
-                                    Text="Milhares de pacotes do repositório oficial, sem precisar aprender comandos."
-                                    Style="{StaticResource CaptionTextStyle}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Text="Catálogo completo" Style="{StaticResource AsaBodyMdStrongTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="Milhares de pacotes do repositório oficial, sem precisar aprender comandos."
+                                           Style="{StaticResource AsaBodySmTextStyle}" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="16">
-                            <StackPanel Spacing="9">
-                                <Border
-                                    Width="34"
-                                    Height="34"
-                                    CornerRadius="9"
-                                    Background="{ThemeResource AccentFillColorTertiaryBrush}">
-                                    <FontIcon
-                                        Glyph="&#xE895;"
-                                        FontSize="15"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="20">
+                            <StackPanel Spacing="12">
+                                <Border Width="34" Height="34" CornerRadius="{StaticResource AsaRadiusDefault}"
+                                        Background="{ThemeResource AsaSurfaceHoverBrush}">
+                                    <FontIcon Glyph="&#xE895;" FontSize="15" HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" Foreground="{ThemeResource AsaTextPrimaryBrush}" />
                                 </Border>
-                                <TextBlock Text="Tudo em dia" FontSize="13" FontWeight="SemiBold" />
-                                <TextBlock
-                                    Text="Veja quais programas têm atualização e escolha exatamente o que deseja instalar."
-                                    Style="{StaticResource CaptionTextStyle}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Text="Tudo em dia" Style="{StaticResource AsaBodyMdStrongTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="Veja quais programas têm atualização e escolha exatamente o que deseja instalar."
+                                           Style="{StaticResource AsaBodySmTextStyle}" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="16">
-                            <StackPanel Spacing="9">
-                                <Border
-                                    Width="34"
-                                    Height="34"
-                                    CornerRadius="9"
-                                    Background="{ThemeResource AccentFillColorTertiaryBrush}">
-                                    <FontIcon
-                                        Glyph="&#xE756;"
-                                        FontSize="15"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="20">
+                            <StackPanel Spacing="12">
+                                <Border Width="34" Height="34" CornerRadius="{StaticResource AsaRadiusDefault}"
+                                        Background="{ThemeResource AsaSurfaceHoverBrush}">
+                                    <FontIcon Glyph="&#xE756;" FontSize="15" HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" Foreground="{ThemeResource AsaTextPrimaryBrush}" />
                                 </Border>
-                                <TextBlock Text="Simples, de verdade" FontSize="13" FontWeight="SemiBold" />
-                                <TextBlock
-                                    Text="Acompanhe cada instalação pelo painel de atividade e consulte o log quando quiser."
-                                    Style="{StaticResource CaptionTextStyle}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Text="Simples, de verdade" Style="{StaticResource AsaBodyMdStrongTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="Acompanhe cada instalação pelo painel de atividade e consulte o log quando quiser."
+                                           Style="{StaticResource AsaBodySmTextStyle}" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </Grid>
+
+                    <!-- Explorar por categoria: cards do catálogo curado (F1-7) + "Ver todas". -->
+                    <StackPanel Spacing="16">
+                        <TextBlock Style="{StaticResource AsaHeadlineMdTextStyle}" Text="Explorar por categoria" />
+
+                        <!-- Categorias com dados: wrap horizontal. -->
+                        <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
+                                      Visibility="{x:Bind ViewModel.HasCategories, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:CatalogCategory">
+                                        <Border Style="{StaticResource CardBorderStyle}" Padding="16" MinWidth="200">
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="{x:Bind Name, Mode=OneTime}"
+                                                           Style="{StaticResource AsaBodyMdStrongTextStyle}"
+                                                           TextWrapping="Wrap" MaxLines="2" />
+                                                <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                                                           TextWrapping="Wrap">
+                                                    <Run Text="{Binding Ids.Count, Mode=OneTime}" />
+                                                    <Run Text=" pacotes" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Vazio contextual quando o catálogo não tem categorias. -->
+                        <StackPanel Spacing="12"
+                                    Visibility="{x:Bind ViewModel.IsEmptyCategories, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="40" Height="40" CornerRadius="{StaticResource AsaRadiusFull}"
+                                    Background="{ThemeResource AsaSurfaceSunkenBrush}"
+                                    HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE7BA;" FontSize="20"
+                                          Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Style="{StaticResource AsaHeadlineMdTextStyle}"
+                                       Text="Catálogo indisponível" TextAlignment="Center" />
+                            <TextBlock Style="{StaticResource AsaBodySmTextStyle}"
+                                       Text="O catálogo curado não pôde ser carregado. Verifique o arquivo de catálogo e reinicie o app."
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="360" />
+                        </StackPanel>
+
+                        <Button Content="Ver todas" Style="{StaticResource ChipButtonStyle}"
+                                Click="ViewAllCategories_Click" HorizontalAlignment="Left"
+                                Visibility="{x:Bind ViewModel.HasCategories, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
                 </StackPanel>
-            </ScrollViewer>
 
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="13"
-                Visibility="{x:Bind ViewModel.ShowLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <ProgressRing Width="36" Height="36" IsActive="True" />
-                <TextBlock
-                    Text="Consultando o catálogo do winget…"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-
-            <Grid
-                Visibility="{x:Bind ViewModel.ShowResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Grid Margin="1,0,1,10">
+                <!-- Carregando inicial. -->
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="13"
+                    Visibility="{x:Bind ViewModel.ShowLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <ProgressRing Width="36" Height="36" IsActive="True" />
                     <TextBlock
-                        Text="{x:Bind ViewModel.ResultsSummary, Mode=OneWay}"
-                        Style="{StaticResource SectionTitleTextStyle}" />
-                    <TextBlock
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Text="catálogo winget"
-                        Style="{StaticResource CaptionTextStyle}" />
+                        Text="Consultando o catálogo do winget…"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <!-- Resultados da busca. -->
+                <Grid
+                    Visibility="{x:Bind ViewModel.ShowResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="1,0,1,10">
+                        <TextBlock
+                            Text="{x:Bind ViewModel.ResultsSummary, Mode=OneWay}"
+                            Style="{StaticResource SectionTitleTextStyle}" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Text="catálogo winget"
+                            Style="{StaticResource CaptionTextStyle}" />
+                    </Grid>
+
+                    <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="0" Margin="0,0,0,24">
+                        <ListView
+                            ItemsSource="{x:Bind ViewModel.Results}"
+                            SelectionMode="None"
+                            IsItemClickEnabled="False"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
+                            ItemContainerStyle="{StaticResource PackageListItemStyle}"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:SearchPackage">
+                                    <Border
+                                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                        BorderThickness="0,0,0,1">
+                                        <Grid Padding="16,10" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" MinWidth="180" />
+                                                <ColumnDefinition Width="118" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border
+                                                Width="42"
+                                                Height="42"
+                                                CornerRadius="{StaticResource AsaRadiusMd}"
+                                                Background="{ThemeResource AccentFillColorTertiaryBrush}"
+                                                VerticalAlignment="Center">
+                                                <TextBlock
+                                                    Text="{x:Bind Initial}"
+                                                    FontSize="18"
+                                                    FontWeight="SemiBold"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource PackageNameTextStyle}" />
+                                                <Grid ColumnSpacing="8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock
+                                                        Text="{x:Bind Id}"
+                                                        Style="{StaticResource CaptionTextStyle}"
+                                                        ToolTipService.ToolTip="{x:Bind Id}" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SourceBadgeBorderStyle}">
+                                                        <TextBlock
+                                                            Text="{x:Bind Source}"
+                                                            FontSize="9"
+                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock
+                                                    Text="{x:Bind VersionDisplay}"
+                                                    FontSize="12"
+                                                    FontWeight="SemiBold"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="versão" Style="{StaticResource CaptionTextStyle}" />
+                                            </StackPanel>
+
+                                            <Button
+                                                Grid.Column="3"
+                                                Content="{x:Bind ActionText, Mode=OneWay}"
+                                                IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
+                                                Style="{StaticResource PrimaryActionButtonStyle}"
+                                                MinWidth="92"
+                                                Click="Install_Click" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Border>
                 </Grid>
 
-                <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="0" Margin="0,0,0,24">
-                    <ListView
-                        ItemsSource="{x:Bind ViewModel.Results}"
-                        SelectionMode="None"
-                        IsItemClickEnabled="False"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Padding="0"
-                        ItemContainerStyle="{StaticResource PackageListItemStyle}"
-                        ScrollViewer.HorizontalScrollMode="Disabled"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:SearchPackage">
-                                <Border
-                                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
-                                    BorderThickness="0,0,0,1">
-                                    <Grid Padding="16,10" ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" MinWidth="180" />
-                                            <ColumnDefinition Width="118" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <Border
-                                            Width="42"
-                                            Height="42"
-                                            CornerRadius="11"
-                                            Background="{ThemeResource AccentFillColorTertiaryBrush}"
-                                            VerticalAlignment="Center">
-                                            <TextBlock
-                                                Text="{x:Bind Initial}"
-                                                FontSize="18"
-                                                FontWeight="SemiBold"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        </Border>
-
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                                            <TextBlock Text="{x:Bind Name}" Style="{StaticResource PackageNameTextStyle}" />
-                                            <Grid ColumnSpacing="8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock
-                                                    Text="{x:Bind Id}"
-                                                    Style="{StaticResource CaptionTextStyle}"
-                                                    ToolTipService.ToolTip="{x:Bind Id}" />
-                                                <Border Grid.Column="1" Style="{StaticResource SourceBadgeBorderStyle}">
-                                                    <TextBlock
-                                                        Text="{x:Bind Source}"
-                                                        FontSize="9"
-                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                </Border>
-                                            </Grid>
-                                        </StackPanel>
-
-                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock
-                                                Text="{x:Bind VersionDisplay}"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="versão" Style="{StaticResource CaptionTextStyle}" />
-                                        </StackPanel>
-
-                                        <Button
-                                            Grid.Column="3"
-                                            Content="{x:Bind ActionText, Mode=OneWay}"
-                                            IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
-                                            Style="{StaticResource PrimaryActionButtonStyle}"
-                                            MinWidth="92"
-                                            Click="Install_Click" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Border>
-            </Grid>
-
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="420"
-                Spacing="11"
-                Visibility="{x:Bind ViewModel.ShowNoResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Border
-                    Width="56"
-                    Height="56"
-                    CornerRadius="28"
-                    Background="{ThemeResource ControlFillColorDefaultBrush}"
-                    HorizontalAlignment="Center">
-                    <FontIcon
-                        Glyph="&#xE721;"
-                        FontSize="23"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </Border>
-                <TextBlock
-                    Text="Nenhum app encontrado"
-                    Style="{StaticResource SectionTitleTextStyle}"
-                    HorizontalAlignment="Center" />
-                <TextBlock
-                    Text="Tente outro nome ou use um termo mais curto. O catálogo do winget também pode estar temporariamente indisponível."
-                    Style="{StaticResource PageSubtitleTextStyle}"
-                    TextAlignment="Center" />
-                <Button
-                    Content="Nova busca"
+                <!-- Nenhum resultado. -->
+                <StackPanel
                     HorizontalAlignment="Center"
-                    Style="{StaticResource ChipButtonStyle}"
-                    Click="FocusSearch_Click" />
-            </StackPanel>
-
-            <Border
-                MaxWidth="560"
-                Padding="24"
-                VerticalAlignment="Top"
-                HorizontalAlignment="Center"
-                Margin="0,10,0,0"
-                Style="{StaticResource CardBorderStyle}"
-                Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel Spacing="10">
-                    <FontIcon
-                        Glyph="&#xE7BA;"
-                        FontSize="24"
-                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                        HorizontalAlignment="Left" />
-                    <TextBlock Text="A busca não funcionou" Style="{StaticResource SectionTitleTextStyle}" />
+                    VerticalAlignment="Center"
+                    MaxWidth="420"
+                    Spacing="11"
+                    Visibility="{x:Bind ViewModel.ShowNoResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <Border
+                        Width="56"
+                        Height="56"
+                        CornerRadius="{StaticResource AsaRadiusFull}"
+                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                        HorizontalAlignment="Center">
+                        <FontIcon
+                            Glyph="&#xE721;"
+                            FontSize="23"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Border>
                     <TextBlock
-                        Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
-                        Style="{StaticResource PageSubtitleTextStyle}" />
+                        Text="Nenhum app encontrado"
+                        Style="{StaticResource SectionTitleTextStyle}"
+                        HorizontalAlignment="Center" />
+                    <TextBlock
+                        Text="Tente outro nome ou use um termo mais curto. O catálogo do winget também pode estar temporariamente indisponível."
+                        Style="{StaticResource PageSubtitleTextStyle}"
+                        TextAlignment="Center" />
                     <Button
-                        Content="Tentar novamente"
-                        Style="{StaticResource PrimaryActionButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Click="RetrySearch_Click" />
+                        Content="Nova busca"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource ChipButtonStyle}"
+                        Click="FocusSearch_Click" />
                 </StackPanel>
-            </Border>
-        </Grid>
+
+                <!-- Erro. -->
+                <Border
+                    MaxWidth="560"
+                    Padding="24"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Center"
+                    Margin="0,10,0,0"
+                    Style="{StaticResource CardBorderStyle}"
+                    Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Spacing="10">
+                        <FontIcon
+                            Glyph="&#xE7BA;"
+                            FontSize="24"
+                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                            HorizontalAlignment="Left" />
+                        <TextBlock Text="A busca não funcionou" Style="{StaticResource SectionTitleTextStyle}" />
+                        <TextBlock
+                            Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                            Style="{StaticResource PageSubtitleTextStyle}" />
+                        <Button
+                            Content="Tentar novamente"
+                            Style="{StaticResource PrimaryActionButtonStyle}"
+                            HorizontalAlignment="Left"
+                            Click="RetrySearch_Click" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>

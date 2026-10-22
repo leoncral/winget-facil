@@ -27,8 +27,7 @@ public sealed partial class DiscoverPage : Page
             App.Packages.Changed += Packages_Changed;
             _subscribed = true;
         }
-
-        SearchBox.Focus(FocusState.Programmatic);
+        // R-2: foco forçado no campo de busca removido (Ctrl+F continua disponível).
     }
 
     private void Page_Unloaded(object sender, RoutedEventArgs e)
@@ -104,6 +103,21 @@ public sealed partial class DiscoverPage : Page
     private void RetrySearch_Click(object sender, RoutedEventArgs e)
     {
         QueueSearch(SearchBox.Text, immediate: true);
+    }
+
+    private async void ViewAllCategories_Click(object sender, RoutedEventArgs e)
+    {
+        // R-2: destino do catálogo completo ainda não existe (backlog).
+        // Não deixa o botão sem comportamento visível: informa o usuário com um diálogo.
+        var dialog = new ContentDialog
+        {
+            Title = "Catálogo completo",
+            Content = "A navegação para o catálogo completo será implementada em outra fase do backlog.",
+            CloseButtonText = "Ok",
+            XamlRoot = this.XamlRoot
+        };
+
+        await dialog.ShowAsync();
     }
 
     private void FocusSearch_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)

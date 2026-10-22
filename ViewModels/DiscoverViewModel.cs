@@ -14,16 +14,41 @@ public sealed class DiscoverViewModel : ObservableObject
     private string _query = string.Empty;
     private bool _isSearching;
     private bool _hasSearched;
+    private bool _isLoadingCategories;
     private string? _errorMessage;
+
+    private readonly CatalogService _catalog = App.Catalog;
 
     public DiscoverViewModel(WingetCli winget, PackageStore store, OperationCenter operations)
     {
         _winget = winget;
         _store = store;
         _operations = operations;
+        // Carrega as categorias do catálogo curado sem bloquear a construção da página.
+        _ = LoadCategoriesAsync();
     }
 
     public ObservableCollection<SearchPackage> Results { get; } = [];
+
+    public IReadOnlyList<CatalogCategory> Categories { get; private set; } = new List<CatalogCategory>();
+
+    public bool HasCategories => Categories.Count > 0;
+
+    public bool IsLoadingCategories
+    {
+        get => _isLoadingCategories;
+        private set
+        {
+            if (SetProperty(ref _isLoadingCategories, value))
+            {
+                OnPropertyChanged(nameof(IsEmptyCategories));
+            }
+        }
+    }
+
+    // Só exibe o estado vazio do catálogo quando as categorias não carregaram
+    // e não estão mais em carga — evita mensagem transitória enquanto assíncrono roda.
+    public bool IsEmptyCategories => !HasCategories && !IsLoadingCategories;
 
     public IReadOnlyList<string> Suggestions { get; } =
     [
@@ -112,6 +137,29 @@ public sealed class DiscoverViewModel : ObservableObject
         HasSearched = false;
         IsSearching = false;
         NotifyStateProperties();
+    }
+
+    public async Task LoadCategoriesAsync()
+    {
+        IsLoadingCategories = true;
+        try
+        {
+            Categories = await _catalog.GetCategoriesAsync();
+        }
+        catch
+        {
+            // Falha ao carregar o catálogo curado: mantém a lista vazia e exibe o estado vazio.
+            // Nunca deixa exceção escapar da carga de categorias.
+            Categories = new List<CatalogCategory>();
+        }
+        finally
+        {
+            IsLoadingCategories = false;
+        }
+
+        OnPropertyChanged(nameof(Categories));
+        OnPropertyChanged(nameof(HasCategories));
+        OnPropertyChanged(nameof(IsEmptyCategories));
     }
 
     public async Task SearchAsync(string query, CancellationToken cancellationToken)

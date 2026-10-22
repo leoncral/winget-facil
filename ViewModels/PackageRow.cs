@@ -54,6 +54,21 @@ public sealed class PackageRow : ObservableObject
     public InstalledPackage Package { get; private set; }
 
     /// <summary>
+    /// Identidade de uma linha instalada. O winget pode reportar várias versões instaladas
+    /// com o mesmo Id (por exemplo, .NET SDK); Id sozinho não identifica uma linha.
+    /// </summary>
+    public string IdentityKey => CreateIdentityKey(Package);
+
+    public static string CreateIdentityKey(InstalledPackage package)
+    {
+        return string.Join(
+            '\u001f',
+            package.Id.Trim().ToUpperInvariant(),
+            package.Version.Trim().ToUpperInvariant(),
+            package.Source.Trim().ToUpperInvariant());
+    }
+
+    /// <summary>
     /// Substitui o pacote subjacente reaproveitando a mesma linha: só dispara as propriedades
     /// que realmente mudaram, preservando seleção/estado de fila e evitando repintar a lista.
     /// </summary>

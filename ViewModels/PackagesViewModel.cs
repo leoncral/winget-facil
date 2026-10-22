@@ -58,6 +58,14 @@ public sealed class PackagesViewModel : ObservableObject
     /// </summary>
     private bool _suppressSelectionTouch;
 
+    /// <summary>
+    /// Impede reentrancia em <see cref="RebuildFromStore"/>: a atualização de seleção
+    /// dentro do laço pode disparar PackageStore.SetSelectedCount → Packages.Changed →
+    /// RefreshFromStore → RebuildFromStore novamente, que faria _allRows.Clear() e
+    /// invalidaria o enumerador externo (Collection was modified).
+    /// </summary>
+    private bool _isRebuilding;
+
     public PackagesViewModel(PackageStore store, OperationCenter operations, bool updatesOnlyMode)
     {
         _store = store;
@@ -399,10 +407,14 @@ public sealed class PackagesViewModel : ObservableObject
     /// <summary>Alterna IsSelected programaticamente sem contar como toque do usuário.</summary>
     private void SetRowsSelected(IEnumerable<PackageRow> rows, bool selected)
     {
+        // Materializa ANTES de iterar: row.IsSelected = selected dispara PropertyChanged,
+        // que pode causar reentrancy em Items/_allRows e invalidar o enumerador deferido
+        // (Collection was modified; enumeration operation may not execute).
+        var rowList = rows.ToList();
         _suppressSelectionTouch = true;
         try
         {
-            foreach (var row in rows)
+            foreach (var row in rowList)
             {
                 if (row.IsSelected != selected)
                 {
@@ -488,110 +500,137 @@ public sealed class PackagesViewModel : ObservableObject
             _ => PackageRowState.Idle
         };
 
-        var row = _allRows.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, e.PackageId, StringComparison.OrdinalIgnoreCase));
+        var matchingRows = _allRows
+            .Where(candidate => string.Equals(candidate.Id, e.PackageId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var row = e.Kind == PackageOperationKind.Upgrade
+            ? matchingRows.FirstOrDefault(candidate => candidate.CanUpdate) ?? matchingRows.FirstOrDefault()
+            : matchingRows.FirstOrDefault();
 
         row?.ApplyOperationState(state, e.Kind == PackageOperationKind.Upgrade, e.Message);
     }
 
     private void RebuildFromStore()
     {
-        // Guarda a seleção por Id antes de reconstruir: quem continua na lista mantém o
-        // check; quem saiu do winget simplesmente sai da seleção (sem exceção).
-        var selectedIds = _allRows
-            .Where(row => row.IsSelected)
-            .Select(row => row.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Reaproveita as linhas já existentes: só cria linha para Id novo e desanexa as que
-        // desapareceram, para que seleção/estado sobrevivam e a lista não "pisque".
-        var reusableById = new Dictionary<string, PackageRow>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in _allRows)
+        if (_isRebuilding)
         {
-            if (!reusableById.ContainsKey(row.Id))
-            {
-                reusableById[row.Id] = row;
-            }
+            return;
         }
 
-        var nextRows = new List<PackageRow>(_store.Installed.Count);
-        var keptRows = new HashSet<PackageRow>();
-        foreach (var package in _store.Installed)
-        {
-            PackageRow row;
-            if (reusableById.TryGetValue(package.Id, out var reusable) && keptRows.Add(reusable))
-            {
-                reusable.UpdatePackage(package);
-                row = reusable;
-            }
-            else
-            {
-                row = new PackageRow(package, RequestUpdate);
-                row.PropertyChanged += Row_PropertyChanged;
-                keptRows.Add(row);
-            }
-
-            nextRows.Add(row);
-        }
-
-        foreach (var row in _allRows)
-        {
-            if (!keptRows.Contains(row))
-            {
-                row.PropertyChanged -= Row_PropertyChanged;
-            }
-        }
-
-        _allRows.Clear();
-        _allRows.AddRange(nextRows);
-
-        // Se um refresh do store acontecer no meio de uma operação, uma linha nova (ou
-        // recriada) para um pacote que continua na fila volta a exibir "Na fila" em vez de
-        // ficar em Idle até a conclusão.
-        foreach (var row in _allRows)
-        {
-            if (row.State == PackageRowState.Idle && _operations.Contains(row.Id))
-            {
-                row.ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
-            }
-        }
-
-        // Restaura a marca por Id (F1-1). Programático: não conta como toque do usuário.
-        _suppressSelectionTouch = true;
+        _isRebuilding = true;
         try
         {
+            // Guarda a seleção pela identidade da instalação antes de reconstruir: quem continua
+            // na lista mantém o check; quem saiu do winget simplesmente sai da seleção.
+            var selectedKeys = _allRows
+                .Where(row => row.IsSelected)
+                .Select(row => row.IdentityKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Reaproveita as linhas já existentes por identidade da instalação. O winget pode
+            // retornar múltiplas versões do mesmo package Id, então o Id sozinho não basta.
+            var reusableByKey = new Dictionary<string, PackageRow>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in _allRows)
             {
-                var isSelected = selectedIds.Contains(row.Id);
-                if (row.IsSelected != isSelected)
+                if (!reusableByKey.ContainsKey(row.IdentityKey))
                 {
-                    row.IsSelected = isSelected;
+                    reusableByKey[row.IdentityKey] = row;
                 }
             }
+
+            var nextRows = new List<PackageRow>(_store.Installed.Count);
+            var keptRows = new HashSet<PackageRow>();
+            foreach (var package in _store.Installed)
+            {
+                PackageRow row;
+                var identityKey = PackageRow.CreateIdentityKey(package);
+                if (reusableByKey.TryGetValue(identityKey, out var reusable) && keptRows.Add(reusable))
+                {
+                    reusable.UpdatePackage(package);
+                    row = reusable;
+                }
+                else
+                {
+                    row = new PackageRow(package, RequestUpdate);
+                    // Defina a seleção antes de assinar PropertyChanged: é restauração
+                    // programática, não uma interação do usuário nem uma contagem intermediária.
+                    row.IsSelected = selectedKeys.Contains(identityKey);
+                    row.PropertyChanged += Row_PropertyChanged;
+                    keptRows.Add(row);
+                }
+
+                nextRows.Add(row);
+            }
+
+            foreach (var row in _allRows)
+            {
+                if (!keptRows.Contains(row))
+                {
+                    row.PropertyChanged -= Row_PropertyChanged;
+                }
+            }
+
+            _allRows.Clear();
+            _allRows.AddRange(nextRows);
+
+            // Se um refresh do store acontecer no meio de uma operação, uma linha nova (ou
+            // recriada) para um pacote que continua na fila volta a exibir "Na fila" em vez de
+            // ficar em Idle até a conclusão.
+            foreach (var row in _allRows.ToList())
+            {
+                if (row.State == PackageRowState.Idle && _operations.Contains(row.Id))
+                {
+                    row.ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
+                }
+            }
+
+            // Restaura a marca por identidade da instalação (F1-1). Programático: não conta
+            // como toque do usuário. Id sozinho não distingue versões lado a lado do .NET SDK.
+            // Se o usuário já mexeu na seleção (F1-4), preserva a escolha atual: não re-marca
+            // itens que ele desmarcou nem desmarca itens que ele marcou.
+            if (!_selectionTouchedByUser)
+            {
+                _suppressSelectionTouch = true;
+                try
+                {
+                    foreach (var row in _allRows.ToList())
+                    {
+                        var isSelected = selectedKeys.Contains(row.IdentityKey);
+                        if (row.IsSelected != isSelected)
+                        {
+                            row.IsSelected = isSelected;
+                        }
+                    }
+                }
+                finally
+                {
+                    _suppressSelectionTouch = false;
+                }
+            }
+
+            // F1-4: no modo "só atualizações", enquanto o usuário nunca mexeu na seleção,
+            // todo item elegível vem marcado (padrão Microsoft Store). Vale no primeiro load
+            // e em refreshes; depois de tocada a escolha do usuário (por identidade da linha)
+            // é preservada e itens novos nascem desmarcados.
+            if (_updatesOnlyMode && !_selectionTouchedByUser)
+            {
+                SetRowsSelected(_allRows.Where(row => row.CanUpdate && !row.IsQueued), selected: true);
+            }
+
+            ErrorMessage = _store.ErrorMessage;
+            InstalledCount = _allRows.Count;
+            UpdateCount = _allRows
+                .Where(row => row.CanUpdate)
+                .Select(row => row.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+
+            ApplyFilter();
         }
         finally
         {
-            _suppressSelectionTouch = false;
+            _isRebuilding = false;
         }
-
-        // F1-4: no modo "só atualizações", enquanto o usuário nunca mexeu na seleção,
-        // todo item elegível vem marcado (padrão Microsoft Store). Vale no primeiro load
-        // e em refreshes; depois de tocada a escolha do usuário (por Id) é preservada e
-        // itens novos nascem desmarcados.
-        if (_updatesOnlyMode && !_selectionTouchedByUser)
-        {
-            SetRowsSelected(_allRows.Where(row => row.CanUpdate && !row.IsQueued), selected: true);
-        }
-
-        ErrorMessage = _store.ErrorMessage;
-        InstalledCount = _allRows.Count;
-        UpdateCount = _allRows
-            .Where(row => row.CanUpdate)
-            .Select(row => row.Id)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
-        ApplyFilter();
     }
 
     private void ApplyFilter()

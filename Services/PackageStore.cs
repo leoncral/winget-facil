@@ -66,7 +66,6 @@ public sealed class PackageStore
         }
 
         SelectedCount = value;
-        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Atualiza a saúde do winget reportada pela janela principal.</summary>

@@ -43,6 +43,12 @@ public sealed class InstalledPackage
     /// <summary>Indica se a versão foi detectada localmente.</summary>
     public bool HasDetectedVersion => !string.IsNullOrWhiteSpace(DetectedVersion);
 
+    /// <summary>Tamanho estimado do download em bytes, ou null quando indisponível.</summary>
+    public long? EstimatedDownloadSizeBytes { get; init; }
+
+    /// <summary>Texto amigável do tamanho estimado (ex.: "50,2 MB"), ou null.</summary>
+    public string? EstimatedDownloadSizeDisplay { get; init; }
+
     /// <summary>
     /// Versão exibida ao usuário: a detectada localmente quando existe, senão a crua do winget.
     /// </summary>
@@ -134,6 +140,26 @@ public sealed class InstalledPackage
             Source = Source,
             DetectedVersion = detected,
             DetectedVersionSource = detected is null ? InstalledVersionSource.Winget : source
+        };
+    }
+
+    /// <summary>
+    /// Cria uma cópia do pacote preenchendo o tamanho estimado do download, preservando
+    /// todas as demais propriedades.
+    /// </summary>
+    public InstalledPackage WithEstimatedDownloadSize(long? bytes, string? display)
+    {
+        return new InstalledPackage
+        {
+            Name = Name,
+            Id = Id,
+            Version = Version,
+            AvailableVersion = AvailableVersion,
+            Source = Source,
+            DetectedVersion = DetectedVersion,
+            DetectedVersionSource = DetectedVersionSource,
+            EstimatedDownloadSizeBytes = bytes,
+            EstimatedDownloadSizeDisplay = display
         };
     }
 

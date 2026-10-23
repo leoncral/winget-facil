@@ -35,7 +35,10 @@ public sealed class PackagesViewModel : ObservableObject
     private readonly PackageStore _store;
     private readonly OperationCenter _operations;
     private readonly bool _updatesOnlyMode;
+    private readonly WingetMetadataService _metadata = App.Metadata;
     private readonly List<PackageRow> _allRows = [];
+    private readonly Dictionary<string, Task<WingetMetadata?>> _metadataInFlight = [];
+    private readonly object _metadataInFlightLock = new();
     private string _searchText = string.Empty;
     private bool _showOnlyUpdates;
     private bool _isLoading;
@@ -209,6 +212,12 @@ public sealed class PackagesViewModel : ObservableObject
     /// <summary>Há itens marcados (habilita o "Limpar seleção").</summary>
     public bool HasSelection => SelectedCount > 0;
 
+    /// <summary>
+    /// F1-8: soma dos tamanhos estimados de download dos itens visíveis que já possuem
+    /// valor (null quando nenhum tem tamanho disponível).
+    /// </summary>
+    public long? TotalEstimatedDownloadSize { get; private set; }
+
     public string SelectionButtonText =>
         SelectedCount == 0 ? "Atualizar selecionados" : $"Atualizar selecionados ({SelectedCount})";
 
@@ -377,6 +386,84 @@ public sealed class PackagesViewModel : ObservableObject
             IsLoading = false;
             _isLoaded = _store.HasLoaded;
             NotifyStateProperties();
+        }
+    }
+
+    /// <summary>
+    /// F1-8: Carrega o tamanho do download dos pacotes que podem ser atualizados e ainda
+    /// não têm o tamanho estimado, via <c>winget show</c> (com cache de 24 h). Não bloqueia
+    /// a UI (cada chamada aguarda de forma assíncrona) e nunca lança: falhas individuais
+    /// são ignoradas e o total é recalculado ao final.
+    /// </summary>
+    public async Task LoadMetadataAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            // Materializa antes de iterar: a lista pode mudar entre chamadas ao winget.
+            var rows = Items.ToList();
+            foreach (var row in rows)
+            {
+                if (!row.CanUpdate || row.Package.EstimatedDownloadSizeBytes is not null)
+                {
+                    continue;
+                }
+
+                // Chave composta: mesmo Id com versão ou origem diferentes são consultas
+                // distintas e não devem reusar a tarefa errada.
+                var key = $"{row.Id}|{row.Package.AvailableVersion ?? string.Empty}|{row.Package.Source ?? string.Empty}";
+                Task<WingetMetadata?> task;
+                lock (_metadataInFlightLock)
+                {
+                    if (!_metadataInFlight.TryGetValue(key, out var existing))
+                    {
+                        existing = _metadata.GetMetadataAsync(
+                            row.Id,
+                            row.Package.AvailableVersion,
+                            row.Package.Source,
+                            ct);
+                        _metadataInFlight[key] = existing;
+                    }
+                    task = existing;
+                }
+
+                WingetMetadata? meta;
+                try
+                {
+                    meta = await task;
+                }
+                catch
+                {
+                    meta = null;
+                }
+                finally
+                {
+                    lock (_metadataInFlightLock)
+                    {
+                        // Só remove se a tarefa armazenada ainda é a mesma que estamos
+                        // finalizando (comparação de referência). Evita remover a tarefa
+                        // de uma consulta mais recente para o mesmo pacote/versão/origem.
+                        if (_metadataInFlight.TryGetValue(key, out var current) &&
+                            ReferenceEquals(current, task))
+                        {
+                            _metadataInFlight.Remove(key);
+                        }
+                    }
+                }
+
+                if (meta is not null && meta.DownloadSizeBytes is not null)
+                {
+                    var newPkg = row.Package.WithEstimatedDownloadSize(
+                        meta.DownloadSizeBytes.Value,
+                        meta.DownloadSizeDisplay);
+                    row.UpdatePackage(newPkg);
+                }
+            }
+
+            RecalculateTotalEstimatedDownloadSize();
+        }
+        catch
+        {
+            // Nunca lança: falhas na leitura de metadados não impedem a lista.
         }
     }
 
@@ -626,6 +713,9 @@ public sealed class PackagesViewModel : ObservableObject
                 .Count();
 
             ApplyFilter();
+
+            // F1-8: carrega tamanhos de download sem bloquear a UI (fire-and-forget).
+            _ = LoadMetadataAsync();
         }
         finally
         {
@@ -678,6 +768,26 @@ public sealed class PackagesViewModel : ObservableObject
 
         UpdateSelectionState();
         NotifyStateProperties();
+        RecalculateTotalEstimatedDownloadSize();
+    }
+
+    /// <summary>
+    /// F1-8: recalcula o total estimado de download sobre os itens <b>visíveis</b>
+    /// (<see cref="Items"/>). Retorna null quando nenhum item visível tem tamanho disponível,
+    /// nunca 0. Chamado ao carregar tamanhos e sempre que o filtro muda a lista visível.
+    /// </summary>
+    private void RecalculateTotalEstimatedDownloadSize()
+    {
+        var sizes = Items
+            .Where(row => row.Package.EstimatedDownloadSizeBytes is not null)
+            .Select(row => row.Package.EstimatedDownloadSizeBytes!.Value)
+            .ToList();
+
+        TotalEstimatedDownloadSize = sizes.Count > 0
+            ? sizes.Sum()
+            : null;
+
+        OnPropertyChanged(nameof(TotalEstimatedDownloadSize));
     }
 
     private void Row_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

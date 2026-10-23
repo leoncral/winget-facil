@@ -3,6 +3,7 @@ using Asa.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 
 namespace Asa.Views;
@@ -19,6 +20,39 @@ public sealed partial class DiscoverPage : Page
     }
 
     public DiscoverViewModel ViewModel { get; }
+
+    private void SearchBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        SearchBox.ApplyTemplate();
+        var contentElement = FindDescendant<ScrollViewer>(SearchBox);
+        if (contentElement is not null)
+        {
+            // No template WinUI, VerticalContentAlignment nem sempre chega ao ScrollViewer
+            // que desenha o texto e o caret. Centralize a parte interna explicitamente.
+            contentElement.VerticalAlignment = VerticalAlignment.Center;
+        }
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent) where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var descendant = FindDescendant<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
 
     private void Page_Loaded(object sender, RoutedEventArgs e)
     {
@@ -48,6 +82,10 @@ public sealed partial class DiscoverPage : Page
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         var query = SearchBox.Text;
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -59,6 +97,7 @@ public sealed partial class DiscoverPage : Page
         if (query.Trim().Length < 2)
         {
             CancelActiveSearch();
+            ViewModel.Reset();
             return;
         }
 

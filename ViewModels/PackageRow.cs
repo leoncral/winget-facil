@@ -92,6 +92,7 @@ public sealed class PackageRow : ObservableObject
         if (!string.Equals(previous.Id, package.Id, StringComparison.Ordinal))
         {
             OnPropertyChanged(nameof(Id));
+            OnPropertyChanged(nameof(OriginBadge));
         }
 
         if (!string.Equals(previous.CurrentVersionDisplay, package.CurrentVersionDisplay, StringComparison.Ordinal))
@@ -122,19 +123,43 @@ public sealed class PackageRow : ObservableObject
         if (!string.Equals(previous.Source, package.Source, StringComparison.Ordinal))
         {
             OnPropertyChanged(nameof(SourceLabel));
+            OnPropertyChanged(nameof(OriginBadge));
         }
 
-        if (previous.HasUpdate != package.HasUpdate)
+        var availableVersionChanged =
+            !string.Equals(previous.AvailableVersion, package.AvailableVersion, StringComparison.Ordinal);
+        var sourceChanged =
+            !string.Equals(previous.Source, package.Source, StringComparison.Ordinal);
+
+        var hasUpdateChanged = previous.HasUpdate != package.HasUpdate;
+        var canUpdateChanged = previous.CanUpdate != package.CanUpdate;
+        var detectedCurrentChanged =
+            previous.IsDetectedVersionCurrent != package.IsDetectedVersionCurrent;
+
+        if (hasUpdateChanged)
         {
             OnPropertyChanged(nameof(HasUpdate));
         }
 
-        if (previous.CanUpdate != package.CanUpdate)
+        if (canUpdateChanged)
         {
             OnPropertyChanged(nameof(CanUpdate));
-            OnPropertyChanged(nameof(ShowInSync));
-            OnPropertyChanged(nameof(ShowActionButton));
             UpdateCommand.NotifyCanExecuteChanged();
+        }
+
+        // AvailableVersion/Source podem alterar os rótulos computados (ShowInSync,
+        // ShowUnavailableUpdate, UnavailableUpdateMessage, ShowVersionSlot,
+        // InSyncMessage, ShowActionButton) mesmo quando HasUpdate/CanUpdate
+        // não mudam — notificá-los sempre que a origem ou a versão disponível mudar.
+        if (hasUpdateChanged || canUpdateChanged || detectedCurrentChanged ||
+            availableVersionChanged || sourceChanged)
+        {
+            OnPropertyChanged(nameof(ShowInSync));
+            OnPropertyChanged(nameof(InSyncMessage));
+            OnPropertyChanged(nameof(ShowUnavailableUpdate));
+            OnPropertyChanged(nameof(UnavailableUpdateMessage));
+            OnPropertyChanged(nameof(ShowVersionSlot));
+            OnPropertyChanged(nameof(ShowActionButton));
         }
     }
 
@@ -157,13 +182,60 @@ public sealed class PackageRow : ObservableObject
 
     public string SourceLabel => Package.SourceDisplay;
 
+    /// <summary>Origem normalizada para o badge da linha (regra D4: winget / msstore / local).</summary>
+    public string OriginBadge => Package.OriginBadge;
+
     public string Initial => Package.Initial;
 
     public bool HasUpdate => Package.HasUpdate;
 
     public bool CanUpdate => Package.CanUpdate;
 
-    public bool ShowInSync => !CanUpdate;
+    /// <summary>
+    /// "Em dia" quando não há versão disponível ou a versão detectada localmente já é
+    /// a atual. Versões disponíveis inelegíveis (pré-lançamento ignorado, origem
+    /// ausente...) não recebem esse rótulo — veja <see cref="ShowUnavailableUpdate"/>.
+    /// </summary>
+    public bool ShowInSync => !Package.HasUpdate || Package.IsDetectedVersionCurrent;
+
+    /// <summary>Nenhuma operação de fila está ativa nesta linha.</summary>
+    public bool IsIdle => State == PackageRowState.Idle;
+
+    /// <summary>
+    /// Há versão disponível, mas ela não pode ser oferecida como atualização
+    /// (pré-lançamento, origem ausente...). Nunca coincide com <see cref="ShowInSync"/>.
+    /// </summary>
+    public bool ShowUnavailableUpdate =>
+        Package.HasUpdate && !Package.CanUpdate && !ShowInSync;
+
+    /// <summary>
+    /// Mostra o slot de versão/disponível na última coluna (só quando ocioso).
+    /// Enquanto há operação em andamento, cede o lugar ao indicador da fila.
+    /// </summary>
+    public bool ShowVersionSlot =>
+        IsIdle && (CanUpdate || ShowInSync || ShowUnavailableUpdate);
+
+    /// <summary>
+    /// Motivo pelo qual o pacote está "Em dia", quando <see cref="ShowInSync"/> é true.
+    /// Vazio quando não se aplica (não há versão disponível para justificar).
+    /// </summary>
+    public string InSyncMessage =>
+        !ShowInSync || !Package.IsDetectedVersionCurrent
+            ? string.Empty
+            : "Já está na versão disponível (verificada localmente)";
+
+    /// <summary>
+    /// Motivo claro pelo qual a versão disponível não é oferecida como atualização,
+    /// quando <see cref="ShowUnavailableUpdate"/> é true. Vazio quando não se aplica.
+    /// </summary>
+    public string UnavailableUpdateMessage =>
+        !ShowUnavailableUpdate
+            ? string.Empty
+            : !Package.IsStableUpdate
+                ? "Prévia ignorada"
+                : string.IsNullOrWhiteSpace(Package.Source)
+                    ? "Origem indisponível"
+                    : "Atualização não disponível";
 
     public RelayCommand UpdateCommand { get; }
 
@@ -381,9 +453,11 @@ public sealed class PackageRow : ObservableObject
     private void NotifyStateDependentProperties()
     {
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(IsBusyRow));
         OnPropertyChanged(nameof(RowStatusAutomationName));
         OnPropertyChanged(nameof(ShowActionButton));
+        OnPropertyChanged(nameof(ShowVersionSlot));
         OnPropertyChanged(nameof(ShowQueueIndicator));
         OnPropertyChanged(nameof(ShowRunningIndicator));
         OnPropertyChanged(nameof(ShowSucceededIndicator));

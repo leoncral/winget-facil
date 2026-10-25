@@ -2,9 +2,12 @@
 <Application
     x:Class="Asa.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:Asa.Services">
     <Application.Resources>
         <ResourceDictionary>
+            <services:WindowMetricsService x:Key="WindowMetrics" />
+
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="ms-appx:///Styles/Tokens.xaml" />

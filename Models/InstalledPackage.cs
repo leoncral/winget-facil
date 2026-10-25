@@ -97,6 +97,20 @@ public sealed class InstalledPackage
 
     public string SourceDisplay => string.IsNullOrWhiteSpace(Source) ? "local" : Source;
 
+    /// <summary>
+    /// Origem normalizada para exibição no badge da linha, conforme a regra D4 dos tokens:
+    /// <c>msstore</c> quando a origem é msstore; <c>local</c> quando o ID começa com
+    /// <c>ARP\</c> ou <c>MSIX\</c> ou não há origem; caso contrário <c>winget</c>.
+    /// </summary>
+    public string OriginBadge =>
+        string.Equals(Source, "msstore", StringComparison.OrdinalIgnoreCase)
+            ? "msstore"
+            : (string.IsNullOrWhiteSpace(Source) ||
+               Id.StartsWith("ARP\\", StringComparison.OrdinalIgnoreCase) ||
+               Id.StartsWith("MSIX\\", StringComparison.OrdinalIgnoreCase))
+                ? "local"
+                : "winget";
+
     public string Initial => WingetDisplay.Initial(Name);
 
     public string ActionText => CanUpdate ? "Atualizar" : "Em dia";
@@ -139,7 +153,9 @@ public sealed class InstalledPackage
             AvailableVersion = AvailableVersion,
             Source = Source,
             DetectedVersion = detected,
-            DetectedVersionSource = detected is null ? InstalledVersionSource.Winget : source
+            DetectedVersionSource = detected is null ? InstalledVersionSource.Winget : source,
+            EstimatedDownloadSizeBytes = EstimatedDownloadSizeBytes,
+            EstimatedDownloadSizeDisplay = EstimatedDownloadSizeDisplay
         };
     }
 

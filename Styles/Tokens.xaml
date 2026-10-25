@@ -30,6 +30,10 @@
     <CornerRadius x:Key="AsaRadiusXl">24</CornerRadius>
     <CornerRadius x:Key="AsaRadiusFull">999</CornerRadius>
 
+    <!-- Avatar: 40×40, raio 10 (seção 4 dos tokens). -->
+    <x:Double x:Key="AsaAvatarSize">40</x:Double>
+    <CornerRadius x:Key="AsaRadiusAvatar">10</CornerRadius>
+
     <!-- ==================== MÉTRICAS ==================== -->
     <x:Double x:Key="AsaTitleBarHeight">48</x:Double>
     <x:Double x:Key="AsaSidebarWidth">240</x:Double>
@@ -115,6 +119,41 @@
     <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#29FFFFFF" />
     <SolidColorBrush x:Key="AsaBorderHoverBrush" Color="#8000F0FF" />
     <SolidColorBrush x:Key="AsaScrimCardBrush" Color="#BF18202C" />
+
+    <!-- ==================== BADGES DE ORIGEM (regra D4) ====================
+         Sem cores literais nos conversores: os conversores apenas escolhem esses recursos. -->
+    <Color x:Key="AsaOriginBadgeMsstoreColor">#33FFC7FF</Color>
+    <Color x:Key="AsaOriginBadgeLocalColor">#14FFFFFF</Color>
+    <SolidColorBrush x:Key="AsaOriginBadgeMsstoreBrush" Color="{StaticResource AsaOriginBadgeMsstoreColor}" />
+    <SolidColorBrush x:Key="AsaOriginBadgeLocalBrush" Color="{StaticResource AsaOriginBadgeLocalColor}" />
+
+    <!-- ==================== GRADIENTES DE AVATAR ====================
+         Definidos aqui (apenas cores de token); o conversor apenas escolhe o recurso
+         pelo índice do hash estável. Nenhum hex literal nos conversores. -->
+    <LinearGradientBrush x:Key="AsaAvatarGradient1" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaActionColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaActionPressedColor}" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AsaAvatarGradient2" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaUpdateColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaUpdateBrightColor}" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AsaAvatarGradient3" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaCriticalColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaCriticalContainerColor}" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AsaAvatarGradient4" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaActionHoverColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaActionColor}" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AsaAvatarGradient5" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaUpdateBrightColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaUpdateColor}" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AsaAvatarGradient6" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource AsaActionPressedColor}" Offset="0" />
+        <GradientStop Color="{StaticResource AsaActionColor}" Offset="1" />
+    </LinearGradientBrush>
 
     <x:Double x:Key="AsaGlowOpacity">0.28</x:Double>
 
@@ -245,6 +284,18 @@
             <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="AsaBorderHoverBrush" Color="#FF00FFFF" />
             <SolidColorBrush x:Key="AsaScrimCardBrush" Color="#FF000000" />
+
+            <!-- Badges de origem em Alto Contraste: sólidos (sem alfa). -->
+            <SolidColorBrush x:Key="AsaOriginBadgeMsstoreBrush" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaOriginBadgeLocalBrush" Color="#808080" />
+
+            <!-- Gradientes de avatar viram sólidos em Alto Contraste. -->
+            <SolidColorBrush x:Key="AsaAvatarGradient1" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaAvatarGradient2" Color="#FF00FF00" />
+            <SolidColorBrush x:Key="AsaAvatarGradient3" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaAvatarGradient4" Color="#FF00FFFF" />
+            <SolidColorBrush x:Key="AsaAvatarGradient5" Color="#FF00FF00" />
+            <SolidColorBrush x:Key="AsaAvatarGradient6" Color="#FF00FFFF" />
             <x:Double x:Key="AsaGlowOpacity">0</x:Double>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>

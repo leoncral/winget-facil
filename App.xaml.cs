@@ -59,6 +59,9 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
+        // Inicializa a mesma instancia de WindowMetricsService exposta como recurso
+        // estatico em App.xaml (origem das ligacoes {Binding ... Source={StaticResource WindowMetrics}}).
+        ((WindowMetricsService)Resources["WindowMetrics"]!).Initialize(_window);
         _window.Activate();
     }
 }

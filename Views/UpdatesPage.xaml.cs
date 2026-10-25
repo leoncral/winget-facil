@@ -1,6 +1,7 @@
 using Asa.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 
 namespace Asa.Views;
@@ -71,6 +72,26 @@ public sealed partial class UpdatesPage : Page
     private void ClearFilter_Click(object sender, RoutedEventArgs e)
     {
         FilterBox.Text = string.Empty;
+        ViewModel.UpdatesFilter = UpdatesFilterKind.All;
+    }
+
+    private void AllFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.All);
+
+    private void CriticalFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.Critical);
+
+    private void WingetFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.Winget);
+
+    private void MsStoreFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.MsStore);
+
+    private void SetFilter(object sender, UpdatesFilterKind filter)
+    {
+        // ToggleButton alterna o estado antes do Click; o chip selecionado deve continuar ativo.
+        if (sender is ToggleButton toggleButton)
+        {
+            toggleButton.IsChecked = true;
+        }
+
+        ViewModel.UpdatesFilter = filter;
     }
 
     private void UpdateSelected_Click(object sender, RoutedEventArgs e)

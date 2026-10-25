@@ -16,33 +16,61 @@
         <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusFilter_Invoked" />
     </Page.KeyboardAccelerators>
 
-    <Grid Padding="32,24,32,0">
+    <Grid Padding="{StaticResource AsaMarginPage}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="Atualizações" Style="{StaticResource PageTitleTextStyle}" />
-                <TextBlock Text="{x:Bind ViewModel.HeaderSummary, Mode=OneWay}" Style="{StaticResource PageSubtitleTextStyle}" />
+        <Grid ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="5" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock Text="Atualizações" Style="{StaticResource AsaHeadlineLgTextStyle}" />
+                    <Border
+                        Padding="9,4"
+                        CornerRadius="{StaticResource AsaRadiusFull}"
+                        Background="{ThemeResource AsaUpdateBrush}"
+                        Visibility="{x:Bind ViewModel.HasAnyUpdates, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock
+                            Text="LOTE DISPONÍVEL"
+                            Style="{StaticResource AsaLabelBadgeTextStyle}"
+                            Foreground="{ThemeResource AsaOnUpdateBrush}" />
+                    </Border>
+                </StackPanel>
+                <TextBlock Text="{x:Bind ViewModel.HeaderSummary, Mode=OneWay}" Style="{StaticResource AsaBodyLgTextStyle}" />
             </StackPanel>
 
-            <StackPanel
-                Orientation="Horizontal"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Spacing="6">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <Border
+                    Padding="12,8"
+                    CornerRadius="{StaticResource AsaRadiusMd}"
+                    Background="{ThemeResource AsaSurfaceCardBrush}"
+                    BorderBrush="{ThemeResource AsaBorderGhostBrush}"
+                    BorderThickness="1">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="TOTAL ESTIMADO" Style="{StaticResource AsaLabelBadgeTextStyle}" />
+                        <TextBlock
+                            Text="{x:Bind ViewModel.TotalEstimatedDownloadDisplay, Mode=OneWay}"
+                            Style="{StaticResource AsaBodySmTextStyle}"
+                            Foreground="{ThemeResource AsaUpdateBrush}"
+                            AutomationProperties.Name="Tamanho total estimado dos downloads" />
+                    </StackPanel>
+                </Border>
                 <ProgressRing
                     Width="16"
                     Height="16"
                     IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                     Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    VerticalAlignment="Center"
-                    Margin="0,0,4,0" />
+                    Foreground="{ThemeResource AsaActionBrush}"
+                    VerticalAlignment="Center" />
                 <Button
                     Style="{StaticResource IconButtonStyle}"
                     ToolTipService.ToolTip="Procurar atualizações"
@@ -53,9 +81,9 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" Margin="0,18,0,12" ColumnSpacing="12">
+        <Grid Grid.Row="1" Margin="0,16,0,4" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="300" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -72,7 +100,6 @@
             </AutoSuggestBox>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <!-- TODO(Fase R / R-4): padrão visual do "Limpar seleção" (chip vs. botão). -->
                 <Button
                     Content="Limpar seleção"
                     Style="{StaticResource ChipButtonStyle}"
@@ -92,8 +119,31 @@
             </StackPanel>
         </Grid>
 
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,4,0,10">
+            <ToggleButton
+                Content="{x:Bind ViewModel.AllFilterLabel, Mode=OneWay}"
+                IsChecked="{x:Bind ViewModel.IsAllUpdatesFilter, Mode=OneWay}"
+                Style="{StaticResource UpdatesFilterToggleButtonStyle}"
+                Click="AllFilter_Click" />
+            <ToggleButton
+                Content="{x:Bind ViewModel.CriticalFilterLabel, Mode=OneWay}"
+                IsChecked="{x:Bind ViewModel.IsCriticalUpdatesFilter, Mode=OneWay}"
+                Style="{StaticResource UpdatesFilterToggleButtonStyle}"
+                Click="CriticalFilter_Click" />
+            <ToggleButton
+                Content="{x:Bind ViewModel.WingetFilterLabel, Mode=OneWay}"
+                IsChecked="{x:Bind ViewModel.IsWingetUpdatesFilter, Mode=OneWay}"
+                Style="{StaticResource UpdatesFilterToggleButtonStyle}"
+                Click="WingetFilter_Click" />
+            <ToggleButton
+                Content="{x:Bind ViewModel.MsStoreFilterLabel, Mode=OneWay}"
+                IsChecked="{x:Bind ViewModel.IsMsStoreUpdatesFilter, Mode=OneWay}"
+                Style="{StaticResource UpdatesFilterToggleButtonStyle}"
+                Click="MsStoreFilter_Click" />
+        </StackPanel>
+
         <InfoBar
-            Grid.Row="2"
+            Grid.Row="3"
             IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
             IsClosable="False"
             Severity="Error"
@@ -105,264 +155,107 @@
             </InfoBar.ActionButton>
         </InfoBar>
 
-        <Grid Grid.Row="3">
-            <Border Style="{StaticResource CardBorderStyle}" Padding="0" Margin="0,0,0,24">
+        <Grid Grid.Row="4">
+            <Border Style="{StaticResource CardBorderStyle}" Padding="0" Margin="0,0,0,4">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <Border
-                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource AsaBorderGhostBrush}"
                         BorderThickness="0,0,0,1"
                         Padding="12,7"
                         Visibility="{x:Bind ViewModel.ShowColumnHeader, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="28" />
-                                <ColumnDefinition Width="*" MinWidth="220" />
-                                <!-- Origem: ocultada quando a janela está abaixo de 1040 px. -->
-                                <ColumnDefinition
-                                    Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                                <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" MinWidth="200" />
+                                <ColumnDefinition Width="104" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="112" />
                             </Grid.ColumnDefinitions>
-
-                            <!-- Select-all tri-state: IsChecked bool? sobre a lista FILTRADA
-                                 (true = tudo marcado, null = parcial/indeterminado). -->
                             <CheckBox
                                 x:Name="SelectAllBox"
                                 Grid.Column="0"
                                 IsChecked="{x:Bind ViewModel.SelectAllState, Mode=OneWay}"
                                 IsEnabled="{x:Bind ViewModel.HasVisibleUpdates, Mode=OneWay}"
                                 Click="SelectAll_Click"
-                                ToolTipService.ToolTip="Selecionar todas as atualizações"
-                                AutomationProperties.Name="Selecionar todas as atualizações" />
-
-                            <TextBlock
-                                Grid.Column="1"
-                                Text="PROGRAMA"
-                                Style="{StaticResource AsaLabelCodeTextStyle}"
-                                FontWeight="SemiBold"
-                                Foreground="{ThemeResource AsaTextTertiaryBrush}"
-                                VerticalAlignment="Center" />
-                            <TextBlock
-                                Grid.Column="2"
-                                Text="ORIGEM"
-                                Style="{StaticResource AsaLabelCodeTextStyle}"
-                                FontWeight="SemiBold"
-                                Foreground="{ThemeResource AsaTextTertiaryBrush}"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                            <TextBlock
-                                Grid.Column="3"
-                                Text="VERSÃO"
-                                Style="{StaticResource AsaLabelCodeTextStyle}"
-                                FontWeight="SemiBold"
-                                Foreground="{ThemeResource AsaTextTertiaryBrush}"
-                                VerticalAlignment="Center" />
-                            <TextBlock
-                                Grid.Column="4"
-                                Text="DISPONÍVEL"
-                                Style="{StaticResource AsaLabelCodeTextStyle}"
-                                FontWeight="SemiBold"
-                                Foreground="{ThemeResource AsaTextTertiaryBrush}"
-                                VerticalAlignment="Center" />
+                                ToolTipService.ToolTip="Selecionar todas as atualizações visíveis"
+                                AutomationProperties.Name="Selecionar todas as atualizações visíveis" />
+                            <TextBlock Grid.Column="1" Text="PROGRAMA" Style="{StaticResource AsaLabelCodeTextStyle}"
+                                       Foreground="{ThemeResource AsaTextTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="REPOSITÓRIO" Style="{StaticResource AsaLabelCodeTextStyle}"
+                                       Foreground="{ThemeResource AsaTextTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="INSTALADA → NOVA" Style="{StaticResource AsaLabelCodeTextStyle}"
+                                       Foreground="{ThemeResource AsaTextTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="AÇÃO" Style="{StaticResource AsaLabelCodeTextStyle}"
+                                       Foreground="{ThemeResource AsaTextTertiaryBrush}" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
 
                     <ListView
                         Grid.Row="1"
                         ItemsSource="{x:Bind ViewModel.Items}"
-                        ItemTemplate="{StaticResource InstalledPackageRowTemplate}"
+                        ItemTemplate="{StaticResource UpdatesPackageRowTemplate}"
                         ItemContainerStyle="{StaticResource InstalledListItemStyle}"
                         SelectionMode="None"
                         IsItemClickEnabled="False"
                         Background="Transparent"
                         BorderThickness="0"
                         Padding="0"
+                        Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+                    <StackPanel
+                        Grid.Row="1"
+                        VerticalAlignment="Top"
+                        Visibility="{x:Bind ViewModel.ShowSkeleton, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                        <Border Height="56" Padding="12,0"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="104"/><ColumnDefinition Width="220"/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions><Border Grid.Column="1" Height="24" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="2" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="3" Height="20" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/><Border Grid.Column="4" Height="28" CornerRadius="{StaticResource AsaRadiusDefault}" Background="{ThemeResource AsaSurfaceHoverBrush}" Opacity="0.6"/></Grid></Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Spacing="10"
+                                Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <FontIcon Glyph="&#xE73E;" FontSize="32" Foreground="{ThemeResource AsaUpdateBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{x:Bind ViewModel.EmptyTitle, Mode=OneWay}" Style="{StaticResource AsaHeadlineMdTextStyle}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{x:Bind ViewModel.EmptyDescription, Mode=OneWay}" Style="{StaticResource AsaBodySmTextStyle}" TextAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" Spacing="10"
+                                Visibility="{x:Bind ViewModel.ShowEmptyFiltered, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <FontIcon Glyph="&#xE721;" FontSize="28" Foreground="{ThemeResource AsaTextTertiaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{x:Bind ViewModel.EmptyFilteredTitle, Mode=OneWay}" Style="{StaticResource AsaHeadlineMdTextStyle}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{x:Bind ViewModel.EmptyFilteredDescription, Mode=OneWay}" Style="{StaticResource AsaBodySmTextStyle}" TextAlignment="Center" />
+                        <Button Content="Limpar filtros" Style="{StaticResource ChipButtonStyle}" HorizontalAlignment="Center" Click="ClearFilter_Click" />
+                    </StackPanel>
+
+                    <Border Grid.Row="2" BorderBrush="{ThemeResource AsaBorderGhostBrush}" BorderThickness="0,1,0,0" Padding="12,8">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Text="Quando informado no manifesto, o WinGet confere o SHA-256 do download."
+                                Style="{StaticResource AsaBodySmTextStyle}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTipService.ToolTip="O SHA-256 é verificado pelo WinGet durante o download; esta informação não representa uma verificação adicional feita pelo Asa." />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Text="MODO DE INSTALAÇÃO" Style="{StaticResource AsaLabelBadgeTextStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.InstallModeLabel, Mode=OneWay}" Style="{StaticResource AsaBodySmTextStyle}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
-
-            <!-- TODO(Fase R / R-3, R-4): skeleton provisório — retângulos neutros com a
-                 altura aproximada das linhas reais (raio 8), SEM animação. A Fase R
-                 aplica tokens e o pulso de opacidade respeitando UISettings.AnimationsEnabled. -->
-            <StackPanel
-                VerticalAlignment="Top"
-                Margin="0,0,0,24"
-                Visibility="{x:Bind ViewModel.ShowSkeleton, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-                <Border Height="56" Padding="12,0">
-                    <Grid ColumnSpacing="10" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" MinWidth="220" />
-                            <ColumnDefinition Width="{Binding OriginColumnWidth, Source={StaticResource WindowMetrics}}" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="18" Height="18" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="1" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Height="22" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center"
-                                Visibility="{Binding IsOriginColumnVisible, Source={StaticResource WindowMetrics}, Converter={StaticResource BoolToVisibility}}" />
-                        <Border Grid.Column="3" Height="14" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                        <Border Grid.Column="4" Height="24" CornerRadius="8" Background="{ThemeResource ControlFillColorDefaultBrush}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-            </StackPanel>
-
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="400"
-                Spacing="10"
-                Margin="0,0,0,40"
-                Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Border
-                    Width="58"
-                    Height="58"
-                    CornerRadius="29"
-                    Background="{ThemeResource AccentFillColorTertiaryBrush}"
-                    HorizontalAlignment="Center">
-                    <FontIcon
-                        Glyph="{x:Bind ViewModel.EmptyGlyph, Mode=OneWay}"
-                        FontSize="23"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                </Border>
-                <TextBlock
-                    Text="{x:Bind ViewModel.EmptyTitle, Mode=OneWay}"
-                    Style="{StaticResource SectionTitleTextStyle}"
-                    HorizontalAlignment="Center" />
-                <TextBlock
-                    Text="{x:Bind ViewModel.EmptyDescription, Mode=OneWay}"
-                    Style="{StaticResource PageSubtitleTextStyle}"
-                    TextAlignment="Center" />
-            </StackPanel>
-
-            <!-- F1-5: vazio de FILTRO é distinto do vazio real (mensagem + ação específicas). -->
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="400"
-                Spacing="10"
-                Margin="0,0,0,40"
-                Visibility="{x:Bind ViewModel.ShowEmptyFiltered, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Border
-                    Width="58"
-                    Height="58"
-                    CornerRadius="29"
-                    Background="{ThemeResource ControlFillColorDefaultBrush}"
-                    HorizontalAlignment="Center">
-                    <FontIcon
-                        Glyph="{x:Bind ViewModel.EmptyFilteredGlyph, Mode=OneWay}"
-                        FontSize="23"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </Border>
-                <TextBlock
-                    Text="{x:Bind ViewModel.EmptyFilteredTitle, Mode=OneWay}"
-                    Style="{StaticResource SectionTitleTextStyle}"
-                    HorizontalAlignment="Center" />
-                <TextBlock
-                    Text="{x:Bind ViewModel.EmptyFilteredDescription, Mode=OneWay}"
-                    Style="{StaticResource PageSubtitleTextStyle}"
-                    TextAlignment="Center" />
-                <Button
-                    Content="Limpar filtro"
-                    Style="{StaticResource ChipButtonStyle}"
-                    HorizontalAlignment="Center"
-                    Click="ClearFilter_Click" />
-            </StackPanel>
         </Grid>
     </Grid>
 </Page>

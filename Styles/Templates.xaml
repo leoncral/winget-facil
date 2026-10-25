@@ -361,4 +361,186 @@
             </Grid>
         </Border>
     </DataTemplate>
+
+    <!-- Linha da página Atualizações: repositório dedicado e comparação instalada → nova. -->
+    <DataTemplate x:Key="UpdatesPackageRowTemplate">
+        <Border BorderBrush="{ThemeResource AsaBorderGhostBrush}" BorderThickness="0,0,0,1">
+            <Grid Padding="12,0" ColumnSpacing="10" MinHeight="{StaticResource AsaRowHeight}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="112" />
+                </Grid.ColumnDefinitions>
+
+                <CheckBox
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                    Visibility="{Binding CanUpdate, Converter={StaticResource BoolToVisibility}}"
+                    ToolTipService.ToolTip="Selecionar para atualização"
+                    AutomationProperties.Name="Selecionar para atualização" />
+
+                <Grid Grid.Column="1" ColumnSpacing="10" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="{StaticResource AsaRadiusAvatar}"
+                        Background="{Binding Id, Converter={StaticResource AvatarGradientConverter}}"
+                        VerticalAlignment="Center">
+                        <TextBlock
+                            Text="{Binding Initial}"
+                            FontFamily="{StaticResource AsaFontMonoSemiBold}"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource AsaOnActionBrush}" />
+                    </Border>
+                    <Grid Grid.Column="1" RowSpacing="2" VerticalAlignment="Center">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Text="{Binding Name}"
+                                Style="{StaticResource AsaBodyMdTextStyle}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTipService.ToolTip="{Binding Name}"
+                                AutomationProperties.Name="{Binding Name}" />
+                            <Border
+                                Grid.Column="1"
+                                Padding="5,1"
+                                CornerRadius="{StaticResource AsaRadiusSm}"
+                                Background="{ThemeResource AsaCriticalBrush}"
+                                Opacity="0.18"
+                                Visibility="{Binding IsCritical, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Text="CRÍTICO"
+                                Style="{StaticResource AsaLabelBadgeTextStyle}"
+                                Foreground="{ThemeResource AsaCriticalContainerBrush}"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsCritical, Converter={StaticResource BoolToVisibility}}"
+                                ToolTipService.ToolTip="{Binding CriticalReason}"
+                                AutomationProperties.Name="{Binding CriticalReason}" />
+                        </Grid>
+                        <TextBlock
+                            Grid.Row="1"
+                            Text="{Binding Id}"
+                            Style="{StaticResource AsaLabelCodeTextStyle}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTipService.ToolTip="{Binding Id}" />
+                    </Grid>
+                </Grid>
+
+                <Border
+                    Grid.Column="2"
+                    Padding="6,2"
+                    VerticalAlignment="Center"
+                    CornerRadius="{StaticResource AsaRadiusSm}"
+                    Background="{Binding OriginBadge, Converter={StaticResource OriginBadgeBrushConverter}}">
+                    <TextBlock
+                        Text="{Binding OriginBadge}"
+                        Style="{StaticResource AsaLabelBadgeTextStyle}"
+                        Foreground="{ThemeResource AsaTextSecondaryBrush}"
+                        VerticalAlignment="Center" />
+                </Border>
+
+                <Grid Grid.Column="3" ColumnSpacing="8" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Text="{Binding CurrentVersion}"
+                        Style="{StaticResource AsaLabelCodeTextStyle}"
+                        VerticalAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTipService.ToolTip="{Binding CurrentVersionToolTip}"
+                        AutomationProperties.Name="{Binding CurrentVersionToolTip}" />
+                    <FontIcon
+                        Grid.Column="1"
+                        Glyph="&#xE72A;"
+                        FontSize="12"
+                        Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Text="{Binding AvailableVersion}"
+                        Style="{StaticResource AsaLabelCodeTextStyle}"
+                        Foreground="{ThemeResource AsaUpdateBrush}"
+                        VerticalAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTipService.ToolTip="{Binding AvailableVersion}"
+                        AutomationProperties.Name="{Binding AvailableVersion}" />
+                </Grid>
+
+                <Grid Grid.Column="4" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <Button
+                        Command="{Binding UpdateCommand}"
+                        Style="{StaticResource ActionIconButtonStyle}"
+                        Visibility="{Binding ShowActionButton, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding ActionToolTip}"
+                        AutomationProperties.Name="Atualizar agora">
+                        <FontIcon Glyph="&#xE895;" FontSize="14" />
+                    </Button>
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="5"
+                        Height="32"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowQueueIndicator, Converter={StaticResource BoolToVisibility}}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <TextBlock Text="{Binding StateText}" Style="{StaticResource AsaBodySmTextStyle}" MaxWidth="96" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="5"
+                        Height="32"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowRunningIndicator, Converter={StaticResource BoolToVisibility}}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <ProgressRing Width="14" Height="14" IsActive="{Binding ShowRunningIndicator}" Foreground="{ThemeResource AsaActionBrush}" />
+                        <TextBlock Text="{Binding StateText}" Style="{StaticResource AsaBodySmTextStyle}" MaxWidth="84" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <FontIcon
+                        Glyph="&#xE73E;"
+                        FontSize="14"
+                        Foreground="{ThemeResource AsaUpdateBrush}"
+                        Visibility="{Binding ShowSucceededIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}" />
+                    <FontIcon
+                        Glyph="&#xE783;"
+                        FontSize="14"
+                        Foreground="{ThemeResource AsaErrorBrush}"
+                        Visibility="{Binding ShowFailedIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateMessage}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        Visibility="{Binding ShowCanceledIndicator, Converter={StaticResource BoolToVisibility}}"
+                        ToolTipService.ToolTip="{Binding StateText}"
+                        AutomationProperties.Name="{Binding RowStatusAutomationName}">
+                        <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="{ThemeResource AsaTextTertiaryBrush}" />
+                        <TextBlock Text="{Binding StateText}" Style="{StaticResource AsaBodySmTextStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </DataTemplate>
 </ResourceDictionary>

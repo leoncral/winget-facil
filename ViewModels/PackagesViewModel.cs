@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Asa.Helpers;
 using Asa.Models;
 using Asa.Services;
@@ -30,12 +31,22 @@ public enum PackagesDisplayState
     Error
 }
 
+public enum UpdatesFilterKind
+{
+    All,
+    Critical,
+    Winget,
+    MsStore
+}
+
 public sealed class PackagesViewModel : ObservableObject
 {
     private readonly PackageStore _store;
     private readonly OperationCenter _operations;
     private readonly bool _updatesOnlyMode;
     private readonly WingetMetadataService _metadata = App.Metadata;
+    private readonly CatalogService _catalog = App.Catalog;
+    private readonly SettingsStore _settings = App.Settings;
     private readonly List<PackageRow> _allRows = [];
     private readonly Dictionary<string, Task<WingetMetadata?>> _metadataInFlight = [];
     private readonly object _metadataInFlightLock = new();
@@ -47,6 +58,11 @@ public sealed class PackagesViewModel : ObservableObject
     private int _selectedCount;
     private int _updateCount;
     private int _installedCount;
+    private UpdatesFilterKind _updatesFilter;
+    private int _allFilterCount;
+    private int _criticalFilterCount;
+    private int _wingetFilterCount;
+    private int _msStoreFilterCount;
 
     /// <summary>
     /// F1-4: o usuário já marcou/desmarcou algo (individual ou select-all/limpar). Depois
@@ -75,6 +91,7 @@ public sealed class PackagesViewModel : ObservableObject
         _operations = operations;
         _updatesOnlyMode = updatesOnlyMode;
         _showOnlyUpdates = updatesOnlyMode;
+        _settings.PropertyChanged += Settings_PropertyChanged;
 
         // Assinatura única por instância (esta classe é criada uma vez no App): as páginas
         // Instalados e Atualizações compartilham o mesmo OperationCenter e cada ViewModel
@@ -107,6 +124,82 @@ public sealed class PackagesViewModel : ObservableObject
             }
         }
     }
+
+    public UpdatesFilterKind UpdatesFilter
+    {
+        get => _updatesFilter;
+        set
+        {
+            if (SetProperty(ref _updatesFilter, value))
+            {
+                OnPropertyChanged(nameof(IsAllUpdatesFilter));
+                OnPropertyChanged(nameof(IsCriticalUpdatesFilter));
+                OnPropertyChanged(nameof(IsWingetUpdatesFilter));
+                OnPropertyChanged(nameof(IsMsStoreUpdatesFilter));
+                ApplyFilter();
+            }
+        }
+    }
+
+    public bool IsAllUpdatesFilter => UpdatesFilter == UpdatesFilterKind.All;
+    public bool IsCriticalUpdatesFilter => UpdatesFilter == UpdatesFilterKind.Critical;
+    public bool IsWingetUpdatesFilter => UpdatesFilter == UpdatesFilterKind.Winget;
+    public bool IsMsStoreUpdatesFilter => UpdatesFilter == UpdatesFilterKind.MsStore;
+
+    public int AllFilterCount
+    {
+        get => _allFilterCount;
+        private set
+        {
+            if (SetProperty(ref _allFilterCount, value))
+            {
+                OnPropertyChanged(nameof(AllFilterLabel));
+            }
+        }
+    }
+
+    public int CriticalFilterCount
+    {
+        get => _criticalFilterCount;
+        private set
+        {
+            if (SetProperty(ref _criticalFilterCount, value))
+            {
+                OnPropertyChanged(nameof(CriticalFilterLabel));
+            }
+        }
+    }
+
+    public int WingetFilterCount
+    {
+        get => _wingetFilterCount;
+        private set
+        {
+            if (SetProperty(ref _wingetFilterCount, value))
+            {
+                OnPropertyChanged(nameof(WingetFilterLabel));
+            }
+        }
+    }
+
+    public int MsStoreFilterCount
+    {
+        get => _msStoreFilterCount;
+        private set
+        {
+            if (SetProperty(ref _msStoreFilterCount, value))
+            {
+                OnPropertyChanged(nameof(MsStoreFilterLabel));
+            }
+        }
+    }
+
+    public string AllFilterLabel => $"Todos ({AllFilterCount})";
+    public string CriticalFilterLabel => $"Críticos ({CriticalFilterCount})";
+    public string WingetFilterLabel => $"Winget ({WingetFilterCount})";
+    public string MsStoreFilterLabel => $"MS Store ({MsStoreFilterCount})";
+
+    public string InstallModeLabel => _settings.SilentInstall ? "Silencioso" : "Interativo";
 
     public bool IsLoading
     {
@@ -218,6 +311,12 @@ public sealed class PackagesViewModel : ObservableObject
     /// </summary>
     public long? TotalEstimatedDownloadSize { get; private set; }
 
+    public bool HasTotalEstimatedDownloadSize => TotalEstimatedDownloadSize is not null;
+
+    public string TotalEstimatedDownloadDisplay => TotalEstimatedDownloadSize is long bytes
+        ? FormatByteSize(bytes)
+        : "Tamanho indisponível";
+
     public string SelectionButtonText =>
         SelectedCount == 0 ? "Atualizar selecionados" : $"Atualizar selecionados ({SelectedCount})";
 
@@ -249,7 +348,7 @@ public sealed class PackagesViewModel : ObservableObject
 
             if (Items.Count == 0)
             {
-                return IsTextFilterActive
+                return IsAnyFilterActive
                     ? PackagesDisplayState.EmptyFiltered
                     : PackagesDisplayState.Empty;
             }
@@ -260,6 +359,10 @@ public sealed class PackagesViewModel : ObservableObject
 
     /// <summary>Filtro de texto ativo (discrimina vazio real × vazio de filtro).</summary>
     private bool IsTextFilterActive => !string.IsNullOrWhiteSpace(SearchText);
+
+    private bool IsUpdatesFilterActive => _updatesOnlyMode && UpdatesFilter != UpdatesFilterKind.All;
+
+    private bool IsAnyFilterActive => IsTextFilterActive || IsUpdatesFilterActive;
 
     public bool ShowSkeleton => DisplayState == PackagesDisplayState.Skeleton;
 
@@ -283,9 +386,11 @@ public sealed class PackagesViewModel : ObservableObject
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(SearchText))
+            if (IsAnyFilterActive)
             {
-                return "Nada encontrado";
+                return IsTextFilterActive
+                    ? "Nada encontrado"
+                    : "Nenhuma atualização neste filtro";
             }
 
             if (ShowOnlyUpdates || _updatesOnlyMode)
@@ -301,9 +406,11 @@ public sealed class PackagesViewModel : ObservableObject
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(SearchText))
+            if (IsAnyFilterActive)
             {
-                return "Tente outro nome ou parte do identificador do pacote.";
+                return IsTextFilterActive
+                    ? "Tente outro nome ou parte do identificador do pacote."
+                    : "Escolha outro filtro ou mostre todas as atualizações.";
             }
 
             if (ShowOnlyUpdates || _updatesOnlyMode)
@@ -321,7 +428,7 @@ public sealed class PackagesViewModel : ObservableObject
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(SearchText))
+            if (IsAnyFilterActive)
             {
                 return "\uE721";
             }
@@ -331,9 +438,13 @@ public sealed class PackagesViewModel : ObservableObject
     }
 
     /// <summary>Mensagem específica para o filtro sem resultado (F1-5).</summary>
-    public string EmptyFilteredTitle => $"Nenhum resultado para “{SearchText.Trim()}”.";
+    public string EmptyFilteredTitle => IsTextFilterActive
+        ? $"Nenhum resultado para “{SearchText.Trim()}”."
+        : "Nenhuma atualização neste filtro.";
 
-    public string EmptyFilteredDescription => "Tente outro nome ou parte do identificador do pacote.";
+    public string EmptyFilteredDescription => IsTextFilterActive
+        ? "Tente outro nome ou parte do identificador do pacote."
+        : "Escolha outro filtro ou mostre todas as atualizações.";
 
     public string EmptyFilteredGlyph => "\uE721";
 
@@ -400,26 +511,30 @@ public sealed class PackagesViewModel : ObservableObject
         try
         {
             // Materializa antes de iterar: a lista pode mudar entre chamadas ao winget.
-            var rows = Items.ToList();
+            // Busca metadados para todas as atualizações elegíveis, não apenas as linhas
+            // momentaneamente visíveis: filtros por origem/criticidade não podem impedir
+            // o preenchimento do total estimado quando forem selecionados depois.
+            var rows = _allRows.Where(row => row.CanUpdate).ToList();
             foreach (var row in rows)
             {
-                if (!row.CanUpdate || row.Package.EstimatedDownloadSizeBytes is not null)
+                var package = row.Package;
+                if (!package.CanUpdate || package.EstimatedDownloadSizeBytes is not null)
                 {
                     continue;
                 }
 
                 // Chave composta: mesmo Id com versão ou origem diferentes são consultas
                 // distintas e não devem reusar a tarefa errada.
-                var key = $"{row.Id}|{row.Package.AvailableVersion ?? string.Empty}|{row.Package.Source ?? string.Empty}";
+                var key = $"{package.Id}|{package.AvailableVersion ?? string.Empty}|{package.Source ?? string.Empty}";
                 Task<WingetMetadata?> task;
                 lock (_metadataInFlightLock)
                 {
                     if (!_metadataInFlight.TryGetValue(key, out var existing))
                     {
                         existing = _metadata.GetMetadataAsync(
-                            row.Id,
-                            row.Package.AvailableVersion,
-                            row.Package.Source,
+                            package.Id,
+                            package.AvailableVersion,
+                            package.Source,
                             ct);
                         _metadataInFlight[key] = existing;
                     }
@@ -450,7 +565,8 @@ public sealed class PackagesViewModel : ObservableObject
                     }
                 }
 
-                if (meta is not null && meta.DownloadSizeBytes is not null)
+                if (meta is not null && meta.DownloadSizeBytes is > 0 &&
+                    _allRows.Contains(row) && HasSameMetadataTarget(row.Package, package))
                 {
                     var newPkg = row.Package.WithEstimatedDownloadSize(
                         meta.DownloadSizeBytes.Value,
@@ -716,6 +832,7 @@ public sealed class PackagesViewModel : ObservableObject
 
             // F1-8: carrega tamanhos de download sem bloquear a UI (fire-and-forget).
             _ = LoadMetadataAsync();
+            _ = LoadCriticalReasonsAsync(_allRows.ToList());
         }
         finally
         {
@@ -738,6 +855,28 @@ public sealed class PackagesViewModel : ObservableObject
             filtered = filtered.Where(row =>
                 row.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                 row.Id.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var textFiltered = filtered.ToList();
+        var eligibleUpdates = textFiltered.Where(row => row.CanUpdate).ToList();
+        AllFilterCount = eligibleUpdates.Count;
+        CriticalFilterCount = eligibleUpdates.Count(row => row.IsCritical);
+        WingetFilterCount = eligibleUpdates.Count(row =>
+            string.Equals(row.OriginBadge, "winget", StringComparison.OrdinalIgnoreCase));
+        MsStoreFilterCount = eligibleUpdates.Count(row =>
+            string.Equals(row.OriginBadge, "msstore", StringComparison.OrdinalIgnoreCase));
+
+        if (_updatesOnlyMode)
+        {
+            filtered = UpdatesFilter switch
+            {
+                UpdatesFilterKind.Critical => textFiltered.Where(row => row.CanUpdate && row.IsCritical),
+                UpdatesFilterKind.Winget => textFiltered.Where(row => row.CanUpdate &&
+                    string.Equals(row.OriginBadge, "winget", StringComparison.OrdinalIgnoreCase)),
+                UpdatesFilterKind.MsStore => textFiltered.Where(row => row.CanUpdate &&
+                    string.Equals(row.OriginBadge, "msstore", StringComparison.OrdinalIgnoreCase)),
+                _ => textFiltered.Where(row => row.CanUpdate)
+            };
         }
 
         var target = filtered.ToList();
@@ -779,7 +918,7 @@ public sealed class PackagesViewModel : ObservableObject
     private void RecalculateTotalEstimatedDownloadSize()
     {
         var sizes = Items
-            .Where(row => row.Package.EstimatedDownloadSizeBytes is not null)
+            .Where(row => row.Package.EstimatedDownloadSizeBytes is > 0)
             .Select(row => row.Package.EstimatedDownloadSizeBytes!.Value)
             .ToList();
 
@@ -788,6 +927,8 @@ public sealed class PackagesViewModel : ObservableObject
             : null;
 
         OnPropertyChanged(nameof(TotalEstimatedDownloadSize));
+        OnPropertyChanged(nameof(HasTotalEstimatedDownloadSize));
+        OnPropertyChanged(nameof(TotalEstimatedDownloadDisplay));
     }
 
     private void Row_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -802,6 +943,11 @@ public sealed class PackagesViewModel : ObservableObject
         {
             UpdateSelectionState();
         }
+
+        if (e.PropertyName == nameof(PackageRow.IsCritical) && !_isRebuilding)
+        {
+            ApplyFilter();
+        }
     }
 
     private void UpdateSelectionState()
@@ -810,6 +956,70 @@ public sealed class PackagesViewModel : ObservableObject
         OnPropertyChanged(nameof(HasVisibleUpdates));
         OnPropertyChanged(nameof(AllVisibleSelected));
         OnPropertyChanged(nameof(SelectAllState));
+    }
+
+    private async Task LoadCriticalReasonsAsync(IReadOnlyList<PackageRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            var package = row.Package;
+            if (!package.CanUpdate)
+            {
+                row.SetCriticalReason(string.Empty);
+                continue;
+            }
+
+            string reason;
+            try
+            {
+                reason = await _catalog.CriticalReasonAsync(
+                    package.Id,
+                    package.EffectiveVersion,
+                    package.AvailableVersion);
+            }
+            catch
+            {
+                reason = string.Empty;
+            }
+
+            // Um refresh pode substituir a versão enquanto o catálogo é carregado.
+            // Nunca aplique o motivo antigo à nova versão da linha.
+            if (_allRows.Contains(row) && HasSameCriticalTarget(row.Package, package))
+            {
+                row.SetCriticalReason(reason);
+            }
+        }
+    }
+
+    private static bool HasSameMetadataTarget(InstalledPackage current, InstalledPackage requested) =>
+        string.Equals(current.Id, requested.Id, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(current.AvailableVersion, requested.AvailableVersion, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(current.Source, requested.Source, StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasSameCriticalTarget(InstalledPackage current, InstalledPackage requested) =>
+        HasSameMetadataTarget(current, requested) &&
+        string.Equals(current.EffectiveVersion, requested.EffectiveVersion, StringComparison.OrdinalIgnoreCase);
+
+    private void Settings_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsStore.SilentInstall))
+        {
+            OnPropertyChanged(nameof(InstallModeLabel));
+        }
+    }
+
+    private static string FormatByteSize(long bytes)
+    {
+        var value = (double)bytes;
+        var units = new[] { "B", "KB", "MB", "GB", "TB" };
+        var unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value.ToString(value >= 10 || unitIndex == 0 ? "0" : "0.#", CultureInfo.CurrentCulture)} {units[unitIndex]}";
     }
 
     private void NotifyStateProperties()
@@ -834,5 +1044,13 @@ public sealed class PackagesViewModel : ObservableObject
         OnPropertyChanged(nameof(AllVisibleSelected));
         OnPropertyChanged(nameof(SelectAllState));
         OnPropertyChanged(nameof(HasAnyUpdates));
+        OnPropertyChanged(nameof(AllFilterLabel));
+        OnPropertyChanged(nameof(CriticalFilterLabel));
+        OnPropertyChanged(nameof(WingetFilterLabel));
+        OnPropertyChanged(nameof(MsStoreFilterLabel));
+        OnPropertyChanged(nameof(IsAllUpdatesFilter));
+        OnPropertyChanged(nameof(IsCriticalUpdatesFilter));
+        OnPropertyChanged(nameof(IsWingetUpdatesFilter));
+        OnPropertyChanged(nameof(IsMsStoreUpdatesFilter));
     }
 }

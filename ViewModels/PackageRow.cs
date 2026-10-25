@@ -37,6 +37,7 @@ public sealed class PackageRow : ObservableObject
     private bool _isQueued;
     private PackageRowState _state = PackageRowState.Idle;
     private string _stateMessage = string.Empty;
+    private string _criticalReason = string.Empty;
     private bool _isUpgradeOperation = true;
     private DispatcherQueue? _dispatcherQueue;
     private int _stateVersion;
@@ -161,6 +162,11 @@ public sealed class PackageRow : ObservableObject
             OnPropertyChanged(nameof(ShowVersionSlot));
             OnPropertyChanged(nameof(ShowActionButton));
         }
+
+        if (!string.Equals(previous.EffectiveVersion, package.EffectiveVersion, StringComparison.Ordinal) || availableVersionChanged)
+        {
+            SetCriticalReason(string.Empty);
+        }
     }
 
     public string Name => Package.Name;
@@ -184,6 +190,23 @@ public sealed class PackageRow : ObservableObject
 
     /// <summary>Origem normalizada para o badge da linha (regra D4: winget / msstore / local).</summary>
     public string OriginBadge => Package.OriginBadge;
+
+    public bool IsCritical => !string.IsNullOrWhiteSpace(CriticalReason);
+
+    public string CriticalReason => _criticalReason;
+
+    public void SetCriticalReason(string reason)
+    {
+        reason ??= string.Empty;
+        if (string.Equals(_criticalReason, reason, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _criticalReason = reason;
+        OnPropertyChanged(nameof(CriticalReason));
+        OnPropertyChanged(nameof(IsCritical));
+    }
 
     public string Initial => Package.Initial;
 

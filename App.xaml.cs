@@ -24,11 +24,16 @@ public partial class App : Application
 
     public static WingetMetadataService Metadata { get; } = new();
 
-    // Escopo único: as páginas de lista compartilham estas instâncias para que seleção,
+    // Escopo único: as páginas de lista compartilham esta instância para que seleção,
     // filtro e linhas sobrevivam a navegações (em vez de criar um ViewModel por página).
-    public PackagesViewModel InstalledPackages { get; } = new(Packages, Operations, updatesOnlyMode: false);
+    // O filtro "Atualizações" dentro de Instalados substitui a antiga tela independente.
+    public PackagesViewModel InstalledPackages { get; } = new(Packages, Operations);
 
-    public PackagesViewModel UpdatesPackages { get; } = new(Packages, Operations, updatesOnlyMode: true);
+    /// <summary>
+    /// Janela principal (definida em <see cref="OnLaunched"/>). Usada por páginas que
+    /// precisam navegar entre seções ou inicializar seletores de arquivo com o HWND.
+    /// </summary>
+    public static MainWindow? MainWindow { get; private set; }
 
     private Window? _window;
 
@@ -58,7 +63,9 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
+        var window = new MainWindow();
+        _window = window;
+        MainWindow = window;
         // Inicializa a mesma instancia de WindowMetricsService exposta como recurso
         // estatico em App.xaml (origem das ligacoes {Binding ... Source={StaticResource WindowMetrics}}).
         ((WindowMetricsService)Resources["WindowMetrics"]!).Initialize(_window);

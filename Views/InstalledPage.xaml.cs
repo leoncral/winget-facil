@@ -1,6 +1,7 @@
 using Asa.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Windows.System;
 
@@ -56,6 +57,25 @@ public sealed partial class InstalledPage : Page
         ViewModel.ShowOnlyUpdates = !ReferenceEquals(sender.SelectedItem, AllFilter);
     }
 
+    private void AllFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.All);
+
+    private void CriticalFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.Critical);
+
+    private void WingetFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.Winget);
+
+    private void MsStoreFilter_Click(object sender, RoutedEventArgs e) => SetFilter(sender, UpdatesFilterKind.MsStore);
+
+    private void SetFilter(object sender, UpdatesFilterKind filter)
+    {
+        // ToggleButton alterna o estado antes do Click; o chip selecionado deve continuar ativo.
+        if (sender is ToggleButton toggleButton)
+        {
+            toggleButton.IsChecked = true;
+        }
+
+        ViewModel.UpdatesFilter = filter;
+    }
+
     private void FilterBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         ViewModel.SearchText = sender.Text;
@@ -77,12 +97,21 @@ public sealed partial class InstalledPage : Page
 
     private void ClearFilter_Click(object sender, RoutedEventArgs e)
     {
+        // O AutoSuggestBox não é bound: limpe o texto da UI e deixe o ViewModel limpar a
+        // busca e, no escopo Atualizações, voltar o subfiltro para Todos. A aba ativa é
+        // preservada (Instalados/Todos não é trocado para Atualizações).
         FilterBox.Text = string.Empty;
+        ViewModel.ClearFilters();
     }
 
     private void UpdateSelected_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.QueueSelectedUpdates();
+    }
+
+    private void SelectionNotice_Close(InfoBar sender, object args)
+    {
+        ViewModel.DismissSelectionNotice();
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)

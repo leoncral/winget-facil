@@ -13,6 +13,7 @@
     <helpers:AvatarGradientConverter x:Key="AvatarGradientConverter" />
     <helpers:OriginBadgeBrushConverter x:Key="OriginBadgeBrushConverter" />
     <helpers:SelectedBackgroundConverter x:Key="SelectedBackgroundConverter" />
+    <helpers:HistoryResultBrushConverter x:Key="HistoryResultBrushConverter" />
 
     <!--
         Vermelho de erro já usado pelo app (MainWindow.CriticalBrush, #C42B1C), exposto como
@@ -115,6 +116,22 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
 
+    <!-- Botão "ghost" (tokens, seção 6.1): fundo translúcido sutil, borda de controle,
+         texto primário, hit-test mínimo de 40 px. Usado em ações secundárias de página
+         (ex.: "Exportar log" no Histórico). -->
+    <Style x:Key="GhostButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="#0DFFFFFF" />
+        <Setter Property="BorderBrush" Value="{ThemeResource AsaBorderControlBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{ThemeResource AsaTextPrimaryBrush}" />
+        <Setter Property="CornerRadius" Value="{StaticResource AsaRadiusDefault}" />
+        <Setter Property="Padding" Value="14,6" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="MinWidth" Value="40" />
+        <Setter Property="FontFamily" Value="{StaticResource AsaFontJakartaMedium}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
     <Style x:Key="UpdatesFilterToggleButtonStyle" TargetType="ToggleButton">
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="Padding" Value="12,4" />
@@ -178,6 +195,8 @@
             <Color x:Key="AsaErrorContainerColor">#FF93000A</Color>
             <Color x:Key="AsaOnErrorColor">#FF690005</Color>
             <Color x:Key="AsaOnErrorContainerColor">#FFFFDAD6</Color>
+            <Color x:Key="AsaCautionColor">#FFFFC24B</Color>
+            <Color x:Key="AsaOnCautionColor">#FF2A1A00</Color>
 
             <Color x:Key="AsaFocusRingColor">#FF00F0FF</Color>
 
@@ -214,6 +233,8 @@
             <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="#FF93000A" />
             <SolidColorBrush x:Key="AsaOnErrorBrush" Color="#FF690005" />
             <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="#FFFFDAD6" />
+            <SolidColorBrush x:Key="AsaCautionBrush" Color="#FFFFC24B" />
+            <SolidColorBrush x:Key="AsaOnCautionBrush" Color="#FF2A1A00" />
 
             <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#29FFFFFF" />
@@ -260,6 +281,8 @@
             <Color x:Key="AsaErrorContainerColor">#FF000000</Color>
             <Color x:Key="AsaOnErrorColor">#FF000000</Color>
             <Color x:Key="AsaOnErrorContainerColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaCautionColor">#FFFFFF00</Color>
+            <Color x:Key="AsaOnCautionColor">#FF000000</Color>
 
             <Color x:Key="AsaFocusRingColor">#FFFFFFFF</Color>
 
@@ -296,6 +319,8 @@
             <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaOnErrorBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaCautionBrush" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaOnCautionBrush" Color="#FF000000" />
 
             <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#FFFFFFFF" />

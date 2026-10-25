@@ -43,7 +43,6 @@ public sealed class PackagesViewModel : ObservableObject
 {
     private readonly PackageStore _store;
     private readonly OperationCenter _operations;
-    private readonly bool _updatesOnlyMode;
     private readonly WingetMetadataService _metadata = App.Metadata;
     private readonly CatalogService _catalog = App.Catalog;
     private readonly SettingsStore _settings = App.Settings;
@@ -55,6 +54,7 @@ public sealed class PackagesViewModel : ObservableObject
     private bool _isLoading;
     private bool _isLoaded;
     private string? _errorMessage;
+    private string? _selectionNotice;
     private int _selectedCount;
     private int _updateCount;
     private int _installedCount;
@@ -85,17 +85,15 @@ public sealed class PackagesViewModel : ObservableObject
     /// </summary>
     private bool _isRebuilding;
 
-    public PackagesViewModel(PackageStore store, OperationCenter operations, bool updatesOnlyMode)
+    public PackagesViewModel(PackageStore store, OperationCenter operations)
     {
         _store = store;
         _operations = operations;
-        _updatesOnlyMode = updatesOnlyMode;
-        _showOnlyUpdates = updatesOnlyMode;
         _settings.PropertyChanged += Settings_PropertyChanged;
 
         // Assinatura única por instância (esta classe é criada uma vez no App): as páginas
-        // Instalados e Atualizações compartilham o mesmo OperationCenter e cada ViewModel
-        // reage às mesmas notificações, sem inscrição duplicada.
+        // de lista compartilham o mesmo OperationCenter e cada ViewModel reage às mesmas
+        // notificações, sem inscrição duplicada.
         _operations.ItemStateChanged += Operations_ItemStateChanged;
     }
 
@@ -120,10 +118,16 @@ public sealed class PackagesViewModel : ObservableObject
         {
             if (SetProperty(ref _showOnlyUpdates, value))
             {
+                OnPropertyChanged(nameof(UpdatesBadgeVisible));
                 ApplyFilter();
             }
         }
     }
+
+    /// <summary>
+    /// Badge "LOTE DISPONÍVEL" do cabeçalho: só no filtro "Atualizações" e com pendências.
+    /// </summary>
+    public bool UpdatesBadgeVisible => _showOnlyUpdates && UpdateCount > 0;
 
     public UpdatesFilterKind UpdatesFilter
     {
@@ -228,6 +232,14 @@ public sealed class PackagesViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    /// <summary>
+    /// Total de atualizações elegíveis selecionadas no escopo (visíveis ou ocultas pelo
+    /// filtro atual). A seleção é persistente entre filtros (F1-1): trocar o subfiltro não
+    /// pode zerar o contador nem desabilitar o lote enquanto houver itens marcados.
+    /// O select-all continua operando apenas sobre <see cref="Items"/>.
+    /// Como o winget atualiza por Id, a seleção mantém no máximo uma linha por Id: assim
+    /// contador, lote e estado da linha falam sempre do mesmo pacote.
+    /// </summary>
     public int SelectedCount
     {
         get => _selectedCount;
@@ -236,12 +248,45 @@ public sealed class PackagesViewModel : ObservableObject
             if (SetProperty(ref _selectedCount, value))
             {
                 OnPropertyChanged(nameof(SelectionButtonText));
+                OnPropertyChanged(nameof(SelectionButtonToolTip));
                 OnPropertyChanged(nameof(CanUpdateSelected));
                 OnPropertyChanged(nameof(HasSelection));
                 OnPropertyChanged(nameof(SelectAllState));
+                OnPropertyChanged(nameof(HiddenSelectedCount));
+                OnPropertyChanged(nameof(HasHiddenSelection));
             }
         }
     }
+
+    /// <summary>
+    /// Explicação visível quando a seleção precisou ser ajustada por causa de um Id repetido
+    /// (ou de um pacote que já estava na fila). Null quando não há nada a explicar.
+    /// </summary>
+    public string? SelectionNotice
+    {
+        get => _selectionNotice;
+        private set
+        {
+            if (SetProperty(ref _selectionNotice, value))
+            {
+                OnPropertyChanged(nameof(HasSelectionNotice));
+            }
+        }
+    }
+
+    public bool HasSelectionNotice => !string.IsNullOrWhiteSpace(SelectionNotice);
+
+    /// <summary>Fecha o aviso de ajuste da seleção (botão de fechar da InfoBar).</summary>
+    public void DismissSelectionNotice() => SelectionNotice = null;
+
+    /// <summary>
+    /// Quantas das atualizações selecionadas estão fora do filtro visível no momento.
+    /// Deixa explícito que o contador e o lote consideram também a seleção oculta.
+    /// </summary>
+    public int HiddenSelectedCount =>
+        Math.Max(0, SelectedCount - Items.Count(row => row.IsSelected && row.CanUpdate && !row.IsQueued));
+
+    public bool HasHiddenSelection => HiddenSelectedCount > 0;
 
     public int UpdateCount
     {
@@ -252,6 +297,7 @@ public sealed class PackagesViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(HeaderSummary));
                 OnPropertyChanged(nameof(HasAnyUpdates));
+                OnPropertyChanged(nameof(UpdatesBadgeVisible));
             }
         }
     }
@@ -273,12 +319,15 @@ public sealed class PackagesViewModel : ObservableObject
     public bool HasVisibleUpdates => Items.Any(row => row.CanUpdate && !row.IsQueued);
 
     public bool AllVisibleSelected =>
-        HasVisibleUpdates && Items.Where(row => row.CanUpdate && !row.IsQueued).All(row => row.IsSelected);
+        HasVisibleUpdates && AllEligiblePackagesSelected(Items);
 
     /// <summary>
     /// F1-4: estado do select-all calculado sobre a lista <b>FILTRADA</b> (<see cref="Items"/>):
-    /// true = todos os elegíveis marcados; null = parcial (indeterminado); false = nenhum
-    /// (ou nenhum elegível visível).
+    /// true = todos os pacotes elegíveis têm uma linha marcada; null = parcial
+    /// (indeterminado); false = nenhum (ou nenhum elegível visível). O agrupamento é por Id
+    /// porque o winget atualiza o pacote uma vez, mesmo quando há versões lado a lado.
+    /// A avaliação usa as linhas visíveis: uma seleção anterior deste Id que esteja oculta
+    /// pelo filtro não conta como "tudo marcado" no cabeçalho.
     /// </summary>
     public bool? SelectAllState
     {
@@ -290,15 +339,34 @@ public sealed class PackagesViewModel : ObservableObject
                 return false;
             }
 
-            var selected = eligible.Count(row => row.IsSelected);
-            if (selected == 0)
+            var selectedPackages = eligible
+                .Where(row => row.IsSelected)
+                .Select(row => row.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            if (selectedPackages == 0)
             {
                 return false;
             }
 
-            return selected == eligible.Count ? true : null;
+            var totalPackages = eligible
+                .Select(row => row.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+
+            return selectedPackages == totalPackages ? true : null;
         }
     }
+
+    private static bool AllEligiblePackagesSelected(IEnumerable<PackageRow> rows) =>
+        rows.Where(row => row.CanUpdate && !row.IsQueued)
+            .GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase)
+            .All(group => group.Any(row => row.IsSelected));
+
+    private static int CountPackages(IEnumerable<PackageRow> rows) =>
+        rows.Select(row => row.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
 
     public bool CanUpdateSelected => SelectedCount > 0;
 
@@ -319,6 +387,18 @@ public sealed class PackagesViewModel : ObservableObject
 
     public string SelectionButtonText =>
         SelectedCount == 0 ? "Atualizar selecionados" : $"Atualizar selecionados ({SelectedCount})";
+
+    /// <summary>
+    /// Explica o alcance do lote quando há seleção oculta (fora do filtro/subfiltro atual),
+    /// para que o contador total do botão nunca esconda o que será atualizado.
+    /// </summary>
+    public string SelectionButtonToolTip => SelectedCount switch
+    {
+        0 => "Selecione ao menos um pacote para atualizar.",
+        _ when HiddenSelectedCount > 0 =>
+            $"{SelectedCount} atualizações selecionadas, sendo {HiddenSelectedCount} fora do filtro atual. O lote atualiza todas.",
+        _ => $"Atualiza {SelectedCount} {(SelectedCount == 1 ? "atualização selecionada" : "atualizações selecionadas")}."
+    };
 
     // ---- F1-5: estados de apresentação (derivados; nunca dependem de animação) ----
 
@@ -360,7 +440,7 @@ public sealed class PackagesViewModel : ObservableObject
     /// <summary>Filtro de texto ativo (discrimina vazio real × vazio de filtro).</summary>
     private bool IsTextFilterActive => !string.IsNullOrWhiteSpace(SearchText);
 
-    private bool IsUpdatesFilterActive => _updatesOnlyMode && UpdatesFilter != UpdatesFilterKind.All;
+    private bool IsUpdatesFilterActive => _showOnlyUpdates && UpdatesFilter != UpdatesFilterKind.All;
 
     private bool IsAnyFilterActive => IsTextFilterActive || IsUpdatesFilterActive;
 
@@ -393,7 +473,7 @@ public sealed class PackagesViewModel : ObservableObject
                     : "Nenhuma atualização neste filtro";
             }
 
-            if (ShowOnlyUpdates || _updatesOnlyMode)
+            if (ShowOnlyUpdates)
             {
                 return HasAnyUpdates ? "Nenhuma atualização encontrada" : "Tudo em dia";
             }
@@ -413,7 +493,7 @@ public sealed class PackagesViewModel : ObservableObject
                     : "Escolha outro filtro ou mostre todas as atualizações.";
             }
 
-            if (ShowOnlyUpdates || _updatesOnlyMode)
+            if (ShowOnlyUpdates)
             {
                 return HasAnyUpdates
                     ? "Ajuste a busca para encontrar a atualização que procura."
@@ -433,7 +513,7 @@ public sealed class PackagesViewModel : ObservableObject
                 return "\uE721";
             }
 
-            return ShowOnlyUpdates || _updatesOnlyMode ? "\uE73E" : "\uE71D";
+            return ShowOnlyUpdates ? "\uE73E" : "\uE71D";
         }
     }
 
@@ -460,16 +540,6 @@ public sealed class PackagesViewModel : ObservableObject
             if (!_isLoaded && HasError)
             {
                 return "Não foi possível ler seus programas.";
-            }
-
-            if (_updatesOnlyMode)
-            {
-                return UpdateCount switch
-                {
-                    0 => "Nenhuma atualização pendente.",
-                    1 => "1 atualização disponível.",
-                    _ => $"{UpdateCount} atualizações disponíveis."
-                };
             }
 
             if (InstalledCount == 0)
@@ -593,18 +663,132 @@ public sealed class PackagesViewModel : ObservableObject
     /// <summary>
     /// Select-all sobre a lista FILTRADA. Marca a seleção como tocada pelo usuário:
     /// a partir daí nenhum refresh volta a selecionar nada automaticamente.
+    /// Mantém uma única linha por Id porque o winget atualiza o pacote por Id.
+    /// Se a normalização descartar uma seleção (inclusive uma linha oculta por outro
+    /// filtro), o aviso explica o que saiu do lote: nada é descartado em silêncio.
     /// </summary>
     public void SetAllVisibleSelected(bool selected)
     {
         _selectionTouchedByUser = true;
-        SetRowsSelected(Items.Where(row => row.CanUpdate && !row.IsQueued), selected);
+        SelectionNotice = null;
+
+        if (!selected)
+        {
+            SetRowsSelected(Items.Where(row => row.CanUpdate && !row.IsQueued), selected: false);
+            return;
+        }
+
+        var eligible = Items.Where(row => row.CanUpdate && !row.IsQueued).ToList();
+        var duplicatePackages = eligible
+            .GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase)
+            .Count(group => group.Count() > 1);
+
+        var hiddenDropped = 0;
+        var otherDropped = 0;
+
+        _suppressSelectionTouch = true;
+        try
+        {
+            foreach (var group in eligible.GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                // Select-all age sobre a lista visível: o representante do pacote é a
+                // linha visível já marcada ou, na falta dela, a primeira visível do Id.
+                var packageId = group.Key;
+                var chosen = group.FirstOrDefault(row => row.IsSelected) ?? group.First();
+
+                foreach (var row in group)
+                {
+                    var shouldSelect = ReferenceEquals(row, chosen);
+                    if (row.IsSelected != shouldSelect)
+                    {
+                        row.IsSelected = shouldSelect;
+                    }
+                }
+
+                // Uma seleção anterior deste Id pode estar oculta por outro filtro (ou fora
+                // do lote elegível). Mantém apenas o representante visível para o pacote não
+                // entrar duas vezes e conta o que foi descartado para o aviso.
+                var remainingSelections = _allRows
+                    .Where(row =>
+                        row.IsSelected &&
+                        !ReferenceEquals(row, chosen) &&
+                        string.Equals(row.Id, packageId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                foreach (var row in remainingSelections)
+                {
+                    row.IsSelected = false;
+
+                    if (Items.Contains(row))
+                    {
+                        otherDropped++;
+                    }
+                    else
+                    {
+                        hiddenDropped++;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _suppressSelectionTouch = false;
+        }
+
+        var noticeParts = new List<string>();
+
+        if (duplicatePackages > 0)
+        {
+            noticeParts.Add(
+                $"{duplicatePackages} pacote(s) com versões lado a lado entram no lote " +
+                "uma única vez, pela linha selecionada");
+        }
+
+        if (hiddenDropped > 0)
+        {
+            noticeParts.Add(
+                $"{hiddenDropped} seleção(ões) oculta(s) do mesmo ID " +
+                (hiddenDropped == 1 ? "foi desmarcada" : "foram desmarcadas"));
+        }
+
+        if (otherDropped > 0)
+        {
+            noticeParts.Add(
+                $"{otherDropped} seleção(ões) do mesmo ID fora do lote elegível " +
+                (otherDropped == 1 ? "foi desmarcada" : "foram desmarcadas"));
+        }
+
+        SelectionNotice = noticeParts.Count > 0
+            ? $"O winget atualiza pelo ID do pacote: {string.Join("; ", noticeParts)}."
+            : null;
+
+        UpdateSelectionState();
     }
 
     /// <summary>Limpa toda a seleção (visível ou não) e sinaliza escolha do usuário.</summary>
     public void ClearSelection()
     {
         _selectionTouchedByUser = true;
+        SelectionNotice = null;
         SetRowsSelected(_allRows.Where(row => row.IsSelected), selected: false);
+    }
+
+    /// <summary>
+    /// Ação "Limpar filtro" do estado vazio: limpa a busca e, no escopo Atualizações,
+    /// devolve o subfiltro para Todos. A aba ativa (Todos/Atualizações do Instalados) é
+    /// preservada para não causar efeito colateral na tela Todos.
+    /// </summary>
+    public void ClearFilters()
+    {
+        if (_showOnlyUpdates && UpdatesFilter != UpdatesFilterKind.All)
+        {
+            UpdatesFilter = UpdatesFilterKind.All;
+        }
+
+        if (!string.Equals(SearchText, string.Empty, StringComparison.Ordinal))
+        {
+            SearchText = string.Empty;
+        }
     }
 
     /// <summary>Alterna IsSelected programaticamente sem contar como toque do usuário.</summary>
@@ -631,23 +815,128 @@ public sealed class PackagesViewModel : ObservableObject
         }
     }
 
+    /// <summary>Alterna a marca de uma linha sem contar como toque do usuário.</summary>
+    private void SetRowSelectedProgrammatically(PackageRow row, bool selected)
+    {
+        if (row.IsSelected == selected)
+        {
+            return;
+        }
+
+        _suppressSelectionTouch = true;
+        try
+        {
+            row.IsSelected = selected;
+        }
+        finally
+        {
+            _suppressSelectionTouch = false;
+        }
+    }
+
+    /// <summary>
+    /// Garante no máximo uma linha selecionada por Id (o winget atualiza por Id, não por
+    /// versão instalada). <paramref name="preferred"/> é a linha que o usuário acabou de
+    /// marcar e deve prevalecer sobre as demais do mesmo pacote. Retorna quantas linhas
+    /// foram desmarcadas.
+    /// </summary>
+    private int EnforceSingleSelectionPerPackage(PackageRow? preferred = null)
+    {
+        var dropped = 0;
+        var selected = _allRows
+            .Where(row => row.IsSelected && row.CanUpdate && !row.IsQueued)
+            .ToList();
+
+        foreach (var group in selected.GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            var chosen = preferred is not null && group.Contains(preferred)
+                ? preferred
+                : group.First();
+
+            foreach (var row in group)
+            {
+                if (!ReferenceEquals(row, chosen) && row.IsSelected)
+                {
+                    SetRowSelectedProgrammatically(row, false);
+                    dropped++;
+                }
+            }
+        }
+
+        return dropped;
+    }
+
     public int QueueSelectedUpdates()
     {
-        var rows = Items
+        // Materializa TODAS as atualizações selecionadas do escopo (inclusive as ocultas
+        // pelo filtro/subfiltro atual), em linha com o contador do botão. A seleção é
+        // persistente entre filtros; limitar o lote às linhas visíveis deixaria o contador
+        // prometendo mais do que o lote realmente faria.
+        var rows = _allRows
             .Where(row => row.IsSelected && row.CanUpdate && !row.IsQueued)
             .ToList();
 
         var count = 0;
-        foreach (var row in rows)
+        var alreadyQueued = 0;
+        var conflictingVersions = 0;
+
+        // Defensivo: a seleção normalizada mantém uma linha por Id, mas o lote nunca deve
+        // prometer mais operações do que o winget consegue executar se algo escapar.
+        foreach (var group in rows.GroupBy(row => row.Id, StringComparer.OrdinalIgnoreCase))
         {
+            var row = group.First();
+
+            foreach (var extra in group.Skip(1))
+            {
+                SetRowSelectedProgrammatically(extra, false);
+                conflictingVersions++;
+            }
+
+            if (_operations.Contains(row.Id))
+            {
+                SetRowSelectedProgrammatically(row, false);
+                alreadyQueued++;
+                continue;
+            }
+
             if (_operations.EnqueueUpgrade(row.Package))
             {
                 MarkQueuedProgrammatically(row);
                 count++;
             }
+            else
+            {
+                // Enqueue só recusa por Id já ativo; não deixe a linha marcada prometendo
+                // uma operação que não entrou no lote.
+                SetRowSelectedProgrammatically(row, false);
+                alreadyQueued++;
+            }
         }
 
         UpdateSelectionState();
+
+        if (alreadyQueued > 0 || conflictingVersions > 0)
+        {
+            var parts = new List<string>();
+            if (alreadyQueued > 0)
+            {
+                parts.Add($"{alreadyQueued} pacote(s) já estavam na fila e não foram enfileirados de novo");
+            }
+
+            if (conflictingVersions > 0)
+            {
+                parts.Add($"{conflictingVersions} versão(ões) extra(s) do mesmo ID ficaram fora do lote");
+            }
+
+            SelectionNotice =
+                $"O winget atualiza pelo ID do pacote: {string.Join("; ", parts)}. " +
+                "As linhas correspondentes foram desmarcadas.";
+        }
+        else
+        {
+            SelectionNotice = null;
+        }
+
         return count;
     }
 
@@ -658,9 +947,38 @@ public sealed class PackagesViewModel : ObservableObject
             return;
         }
 
+        if (_operations.Contains(row.Id))
+        {
+            SelectionNotice =
+                $"{row.Name} já está na fila. Aguarde a conclusão antes de atualizar outra versão deste pacote.";
+            return;
+        }
+
         if (_operations.EnqueueUpgrade(row.Package))
         {
             MarkQueuedProgrammatically(row);
+
+            // Se outra versão deste mesmo Id estava marcada, o pacote agora já está na
+            // fila: desmarque-a para o contador não prometer uma segunda operação.
+            var dropped = 0;
+            foreach (var sibling in _allRows.Where(candidate =>
+                         !ReferenceEquals(candidate, row) &&
+                         candidate.IsSelected &&
+                         string.Equals(candidate.Id, row.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                SetRowSelectedProgrammatically(sibling, false);
+                dropped++;
+            }
+
+            SelectionNotice = dropped > 0
+                ? $"O winget atualiza pelo ID do pacote: a outra versão de {row.Name} foi desmarcada."
+                : null;
+            UpdateSelectionState();
+        }
+        else
+        {
+            SelectionNotice =
+                $"{row.Name} não pôde ser enfileirado porque o pacote já tem uma operação ativa.";
             UpdateSelectionState();
         }
     }
@@ -683,9 +1001,16 @@ public sealed class PackagesViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Traduz o ciclo de vida de um item da fila (notificado pelo OperationCenter com o Id do
-    /// pacote) para o estado da linha correspondente. Busca por Id sem distinção de
-    /// maiúsculas/minúsculas; roda na UI thread, então as notificações da linha são seguras.
+    /// Traduz o ciclo de vida de um item da fila (notificado pelo OperationCenter) para o
+    /// estado da linha correspondente. Upgrades são casados por Id + versão instalada +
+    /// origem: o mesmo Id pode aparecer em versões lado a lado e só a linha que originou a
+    /// operação deve mudar de estado. Instalações são comandadas por Id + origem e não têm
+    /// versão instalada de origem; a origem é comparada exatamente. Um evento sem origem é
+    /// desconhecido, nunca um curinga: não é atribuído a nenhuma linha, pois não prova qual
+    /// origem foi afetada. Quando a identidade não permite distinguir a linha, o estado
+    /// terminal não é pintado em uma linha arbitrária: todas as linhas que estavam em
+    /// Queued/Running são liberadas.
+    /// Roda na UI thread, então as notificações são seguras.
     /// </summary>
     private void Operations_ItemStateChanged(object? sender, OperationItemEventArgs e)
     {
@@ -706,11 +1031,144 @@ public sealed class PackagesViewModel : ObservableObject
         var matchingRows = _allRows
             .Where(candidate => string.Equals(candidate.Id, e.PackageId, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        var row = e.Kind == PackageOperationKind.Upgrade
-            ? matchingRows.FirstOrDefault(candidate => candidate.CanUpdate) ?? matchingRows.FirstOrDefault()
-            : matchingRows.FirstOrDefault();
 
-        row?.ApplyOperationState(state, e.Kind == PackageOperationKind.Upgrade, e.Message);
+        if (e.Kind == PackageOperationKind.Upgrade)
+        {
+            var upgradeCandidates = matchingRows
+                .Where(candidate => MatchesOperationIdentity(candidate.Package, e))
+                .ToList();
+
+            // Compatibilidade/robustez: quando só existe uma linha com esse Id, ela é a única
+            // candidata possível mesmo que a versão tenha mudado entre o evento e o refresh —
+            // desde que a origem seja exatamente a mesma. Com versões lado a lado (ou origem
+            // desconhecida/diferente) não há fallback: aplicar à linha errada seria pior.
+            if (upgradeCandidates.Count == 0 &&
+                matchingRows.Count == 1 &&
+                SameOrigin(matchingRows[0].Package.Source, e.Source))
+            {
+                upgradeCandidates.Add(matchingRows[0]);
+            }
+
+            if (state is PackageRowState.Queued or PackageRowState.Running)
+            {
+                // Enquanto a operação não termina, toda linha com a identidade exata
+                // representa o mesmo alvo: fila/execução são refletidas sem escolher uma
+                // delas arbitrariamente. No desfecho, todas são liberadas.
+                foreach (var candidate in upgradeCandidates)
+                {
+                    candidate.ApplyOperationState(state, isUpgradeOperation: true, e.Message);
+                }
+
+                return;
+            }
+
+            // Resultado terminal (Succeeded/Failed/Canceled): só é pintado quando a
+            // identidade aponta exatamente uma linha. Várias linhas com o mesmo
+            // Id+versão+origem são indistinguíveis; atribuir o desfecho a uma delas seria
+            // arbitrário. Nesse caso, libera as ocupadas sem atribuir resultado.
+            if (upgradeCandidates.Count == 1)
+            {
+                var row = upgradeCandidates[0];
+                row.ApplyOperationState(state, isUpgradeOperation: true, e.Message);
+
+                // Nenhuma outra linha do mesmo Id pode continuar presa em fila/execução.
+                ReleaseBusyRows(matchingRows.Where(candidate => !ReferenceEquals(candidate, row)));
+                return;
+            }
+
+            ReleaseBusyRows(matchingRows);
+            return;
+        }
+
+        // Instalação: a origem faz parte da identidade do alvo. A versão da operação é a
+        // versão a instalar, não a versão instalada que identifica a linha, então não serve
+        // para casar instalações lado a lado com o mesmo Id. Origem vazia não casa com
+        // nenhuma linha: sem origem não é possível escolher a linha de forma segura.
+        var candidates = matchingRows
+            .Where(candidate => MatchesOperationSource(candidate.Package, e))
+            .ToList();
+
+        if (state is PackageRowState.Queued or PackageRowState.Running)
+        {
+            // Só há uma operação ativa por Id (OperationCenter.Contains garante isso).
+            // Sem como distinguir versões lado a lado, todas as linhas candidatas refletem
+            // que o pacote está na fila/executando — e todas serão liberadas no terminal.
+            foreach (var candidate in candidates)
+            {
+                candidate.ApplyOperationState(state, isUpgradeOperation: false, e.Message);
+            }
+
+            return;
+        }
+
+        if (candidates.Count == 1)
+        {
+            candidates[0].ApplyOperationState(state, isUpgradeOperation: false, e.Message);
+
+            // Um refresh anterior pode ter marcado outras linhas do mesmo Id (de outra
+            // origem ou de um estado antigo). Nenhuma pode continuar presa em Queued/Running.
+            ReleaseBusyRows(matchingRows.Where(row => !ReferenceEquals(row, candidates[0])));
+            return;
+        }
+
+        // Origem desconhecida, múltiplas linhas da mesma origem ou nenhuma linha com a
+        // origem exata: não há identidade suficiente para atribuir sucesso/falha a uma
+        // instalação específica. Libera as linhas ocupadas em vez de pintar a linha errada;
+        // o resultado do lote continua visível na barra de atividade.
+        ReleaseBusyRows(matchingRows);
+    }
+
+    private static bool MatchesOperationSource(InstalledPackage package, OperationItemEventArgs e)
+    {
+        return SameOrigin(package.Source, e.Source);
+    }
+
+    /// <summary>
+    /// Compara origens normalizando espaços. Origem vazia é desconhecida: não identifica
+    /// linha nenhuma e nunca casa com outra origem (nem com outra vazia), pois duas origens
+    /// desconhecidas não provam ser a mesma.
+    /// </summary>
+    private static bool SameOrigin(string? packageSource, string? eventSource)
+    {
+        var normalizedPackageSource = packageSource?.Trim();
+        var normalizedEventSource = eventSource?.Trim();
+
+        return !string.IsNullOrEmpty(normalizedPackageSource) &&
+               !string.IsNullOrEmpty(normalizedEventSource) &&
+               string.Equals(
+                   normalizedPackageSource,
+                   normalizedEventSource,
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Devolve à ociosidade as linhas que ainda exibem fila/execução. Usado quando o evento
+    /// terminal não pode ser atribuído a uma instalação específica: é melhor liberar a linha
+    /// do que mostrar "Concluído"/"Falhou" em uma instalação que talvez não tenha sido a alvo.
+    /// </summary>
+    private static void ReleaseBusyRows(IEnumerable<PackageRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            if (row.IsBusyRow)
+            {
+                row.ApplyOperationState(PackageRowState.Idle, isUpgradeOperation: false);
+            }
+        }
+    }
+
+    private static bool MatchesOperationIdentity(InstalledPackage package, OperationItemEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.InstalledVersion))
+        {
+            return false;
+        }
+
+        return string.Equals(
+                   package.Version.Trim(),
+                   e.InstalledVersion.Trim(),
+                   StringComparison.OrdinalIgnoreCase) &&
+               SameOrigin(package.Source, e.Source);
     }
 
     private void RebuildFromStore()
@@ -777,13 +1235,25 @@ public sealed class PackagesViewModel : ObservableObject
             _allRows.AddRange(nextRows);
 
             // Se um refresh do store acontecer no meio de uma operação, uma linha nova (ou
-            // recriada) para um pacote que continua na fila volta a exibir "Na fila" em vez de
-            // ficar em Idle até a conclusão.
+            // recriada) para a instalação que continua na fila volta a exibir "Na fila" em vez
+            // de ficar em Idle até a conclusão. A busca é pela identidade (Id + versão + origem)
+            // para não marcar as outras versões lado a lado do mesmo Id.
             foreach (var row in _allRows.ToList())
             {
-                if (row.State == PackageRowState.Idle && _operations.Contains(row.Id))
+                if (row.State != PackageRowState.Idle)
                 {
-                    row.ApplyOperationState(PackageRowState.Queued, isUpgradeOperation: true);
+                    continue;
+                }
+
+                var active = _operations.FindActiveOperation(
+                    row.Id,
+                    row.Package.Version,
+                    row.Package.Source);
+                if (active is not null)
+                {
+                    row.ApplyOperationState(
+                        PackageRowState.Queued,
+                        isUpgradeOperation: active.Kind == PackageOperationKind.Upgrade);
                 }
             }
 
@@ -811,14 +1281,13 @@ public sealed class PackagesViewModel : ObservableObject
                 }
             }
 
-            // F1-4: no modo "só atualizações", enquanto o usuário nunca mexeu na seleção,
-            // todo item elegível vem marcado (padrão Microsoft Store). Vale no primeiro load
-            // e em refreshes; depois de tocada a escolha do usuário (por identidade da linha)
-            // é preservada e itens novos nascem desmarcados.
-            if (_updatesOnlyMode && !_selectionTouchedByUser)
-            {
-                SetRowsSelected(_allRows.Where(row => row.CanUpdate && !row.IsQueued), selected: true);
-            }
+            // A restauração por identidade pode encontrar duas linhas do mesmo Id se a
+            // seleção veio de um estado antigo; o lote continua sendo um por Id.
+            EnforceSingleSelectionPerPackage();
+
+            // F1-4: no filtro "Atualizações" do Instalados a seleção permanece em uso
+            // direto (select-all e checks individuais); nada é pré-selecionado
+            // automaticamente em nenhuma visão.
 
             ErrorMessage = _store.ErrorMessage;
             InstalledCount = _allRows.Count;
@@ -859,14 +1328,18 @@ public sealed class PackagesViewModel : ObservableObject
 
         var textFiltered = filtered.ToList();
         var eligibleUpdates = textFiltered.Where(row => row.CanUpdate).ToList();
-        AllFilterCount = eligibleUpdates.Count;
-        CriticalFilterCount = eligibleUpdates.Count(row => row.IsCritical);
-        WingetFilterCount = eligibleUpdates.Count(row =>
-            string.Equals(row.OriginBadge, "winget", StringComparison.OrdinalIgnoreCase));
-        MsStoreFilterCount = eligibleUpdates.Count(row =>
-            string.Equals(row.OriginBadge, "msstore", StringComparison.OrdinalIgnoreCase));
 
-        if (_updatesOnlyMode)
+        // Contagens por pacote (Id distinto), não por linha: o mesmo Id pode ter versões
+        // lado a lado e o winget executa uma única atualização por Id. Assim os chips não
+        // prometem mais operações do que a seleção/lote conseguem representar.
+        AllFilterCount = CountPackages(eligibleUpdates);
+        CriticalFilterCount = CountPackages(eligibleUpdates.Where(row => row.IsCritical));
+        WingetFilterCount = CountPackages(eligibleUpdates.Where(row =>
+            string.Equals(row.OriginBadge, "winget", StringComparison.OrdinalIgnoreCase)));
+        MsStoreFilterCount = CountPackages(eligibleUpdates.Where(row =>
+            string.Equals(row.OriginBadge, "msstore", StringComparison.OrdinalIgnoreCase)));
+
+        if (_showOnlyUpdates)
         {
             filtered = UpdatesFilter switch
             {
@@ -937,6 +1410,12 @@ public sealed class PackagesViewModel : ObservableObject
         {
             // F1-4: marca/desmarca vindo do próprio checkbox da linha = escolha do usuário.
             _selectionTouchedByUser = true;
+            SelectionNotice = null;
+
+            if (sender is PackageRow { IsSelected: true } row)
+            {
+                HandleNewUserSelection(row);
+            }
         }
 
         if (e.PropertyName is nameof(PackageRow.IsSelected) or nameof(PackageRow.IsQueued))
@@ -950,9 +1429,43 @@ public sealed class PackagesViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Aplica as regras de identidade ao marcar uma linha: o winget atualiza por Id, então
+    /// um pacote com versões lado a lado tem no máximo uma linha marcada e não pode ser
+    /// marcado de novo enquanto já estiver na fila.
+    /// </summary>
+    private void HandleNewUserSelection(PackageRow row)
+    {
+        SelectionNotice = null;
+
+        if (_operations.Contains(row.Id))
+        {
+            SetRowSelectedProgrammatically(row, false);
+            SelectionNotice =
+                $"{row.Name} já está na fila. Aguarde a conclusão antes de atualizar outra versão deste pacote.";
+            return;
+        }
+
+        var dropped = EnforceSingleSelectionPerPackage(row);
+        if (dropped > 0)
+        {
+            SelectionNotice =
+                $"O winget atualiza pelo ID do pacote: apenas uma versão de {row.Name} entra no lote. " +
+                $"{dropped} versão(ões) do mesmo ID ficaram desmarcadas.";
+        }
+    }
+
     private void UpdateSelectionState()
     {
-        SelectedCount = Items.Count(row => row.IsSelected && row.CanUpdate && !row.IsQueued);
+        // Contagem do lote: todas as atualizações elegíveis selecionadas, não apenas as
+        // visíveis. Assim trocar o subfiltro (ex.: Todos → Críticos) preserva a seleção e
+        // mantém contador, habilitação do lote e "Limpar seleção" coerentes.
+        SelectedCount = _allRows.Count(row => row.IsSelected && row.CanUpdate && !row.IsQueued);
+
+        // A seleção visível/oculta depende do filtro atual e pode mudar sem o total mudar.
+        OnPropertyChanged(nameof(HiddenSelectedCount));
+        OnPropertyChanged(nameof(HasHiddenSelection));
+        OnPropertyChanged(nameof(SelectionButtonToolTip));
         OnPropertyChanged(nameof(HasVisibleUpdates));
         OnPropertyChanged(nameof(AllVisibleSelected));
         OnPropertyChanged(nameof(SelectAllState));

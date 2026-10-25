@@ -50,7 +50,6 @@ public sealed partial class MainWindow : Window
         var app = (App)Application.Current;
         App.Packages.Changed += Packages_Changed;
         app.InstalledPackages.PropertyChanged += PackagesSelection_PropertyChanged;
-        app.UpdatesPackages.PropertyChanged += PackagesSelection_PropertyChanged;
         App.Operations.PropertyChanged += Operations_PropertyChanged;
         App.Operations.QueueCompleted += Operations_QueueCompleted;
         App.Operations.ConfirmCloseRunningApp = ConfirmCloseRunningAppAsync;
@@ -200,18 +199,64 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var pageType = item.Tag switch
-        {
-            "discover" => typeof(DiscoverPage),
-            "installed" => typeof(InstalledPage),
-            "updates" => typeof(UpdatesPage),
-            _ => null
-        };
+        var pageType = PageTypeForTag(item.Tag as string);
 
         if (pageType is not null)
         {
             NavigateTo(pageType);
         }
+    }
+
+    /// <summary>
+    /// Navega para uma seção pelo <c>Tag</c> (usado por páginas como o Histórico para
+    /// oferecer uma ação de saída do estado vazio). O tag "updates" é um alias para a
+    /// seção Instalados com o filtro "Atualizações" ativo — a antiga tela independente
+    /// de Atualizações foi consolidada nesse filtro.
+    /// </summary>
+    public void NavigateToSection(string tag)
+    {
+        NavigationViewItem? item;
+        var isUpdatesSection = string.Equals(tag, "updates", StringComparison.Ordinal);
+
+        if (isUpdatesSection)
+        {
+            item = InstalledNav;
+            // Antes de trocar a seleção: Page_Loaded reaplica o FilterBar a partir deste valor.
+            ((App)Application.Current).InstalledPackages.ShowOnlyUpdates = true;
+        }
+        else
+        {
+            item = tag switch
+            {
+                "discover" => DiscoverNav,
+                "installed" => InstalledNav,
+                "historico" => HistoricoNav,
+                _ => null
+            };
+        }
+
+        if (item is null)
+        {
+            return;
+        }
+
+        NavView.SelectedItem = item;
+
+        if (PageTypeForTag(isUpdatesSection ? "installed" : tag) is { } pageType)
+        {
+            NavigateTo(pageType);
+        }
+    }
+
+    private static Type? PageTypeForTag(string? tag)
+    {
+        return tag switch
+        {
+            "discover" => typeof(DiscoverPage),
+            "installed" => typeof(InstalledPage),
+            "historico" => typeof(HistoryPage),
+            _ => null
+        };
     }
 
     private void NavigateTo(Type pageType)
@@ -232,9 +277,10 @@ public sealed partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(PackagesViewModel.SelectedCount))
         {
+            // A seleção vivia em dois ViewModels (Instalados e Atualizações); com a
+            // consolidação em Instalados, resta um.
             var app = (App)Application.Current;
-            App.Packages.SetSelectedCount(
-                app.InstalledPackages.SelectedCount + app.UpdatesPackages.SelectedCount);
+            App.Packages.SetSelectedCount(app.InstalledPackages.SelectedCount);
             UpdateStatusBar();
         }
     }
@@ -280,15 +326,31 @@ public sealed partial class MainWindow : Window
         UpdateActivityBar();
     }
 
-    private async void Operations_QueueCompleted(object? sender, EventArgs e)
+    private async void Operations_QueueCompleted(object? sender, BatchCompletedEventArgs e)
     {
+        // Snapshot do lote concluído antes de qualquer await: outro lote pode começar e
+        // limpar o estado do OperationCenter enquanto o refresh pós-atualização roda.
+        var upgrades = e.CompletedUpgrades;
+        var historyBatchId = e.HistoryBatchId;
+        var batchGeneration = e.BatchGeneration;
+
         try
         {
             // Winget can take a moment to release its files after updating App Installer.
             await Task.Delay(600);
-            await App.Packages.RefreshAsync(force: true);
+            var refreshSucceeded = await App.Packages.RefreshAsync(force: true);
             UpdateUpdatesBadge();
-            ReportStaleUpgrades();
+
+            // Sem confirmação de leitura bem-sucedida, Installed ainda é o snapshot anterior
+            // ao lote: usá-lo produziria um aviso MSIX falso (ou omitiria um real). Nesse
+            // caso não atualiza o aviso nem o histórico; a falha de leitura fica exposta
+            // no estado do winget e um lote futuro que toque o pacote reavalia.
+            if (!refreshSucceeded)
+            {
+                return;
+            }
+
+            await ReportStaleUpgradesAsync(upgrades, historyBatchId, batchGeneration);
         }
         catch
         {
@@ -300,9 +362,11 @@ public sealed partial class MainWindow : Window
     /// Winget can report success even when an MSIX update was blocked (for example, while the app
     /// or its shell extension is in use). Warn when a package still shows a pending update.
     /// </summary>
-    private void ReportStaleUpgrades()
+    private async Task ReportStaleUpgradesAsync(
+        IReadOnlyList<PackageOperation> upgrades,
+        string? historyBatchId,
+        long batchGeneration)
     {
-        var upgrades = App.Operations.CompletedUpgrades;
         if (upgrades.Count == 0)
         {
             return;
@@ -311,22 +375,46 @@ public sealed partial class MainWindow : Window
         var stillPending = new List<string>();
         foreach (var operation in upgrades)
         {
-            var package = App.Packages.Installed.FirstOrDefault(
-                candidate => string.Equals(candidate.Id, operation.Id, StringComparison.OrdinalIgnoreCase));
+            // O mesmo Id pode ter versões lado a lado. Depois do upgrade a versão instalada
+            // muda, então a identidade original não serve para esta checagem: procuramos
+            // qualquer instalação desse Id que ainda mostre atualização pendente.
+            var package = App.Packages.Installed.FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, operation.Id, StringComparison.OrdinalIgnoreCase) &&
+                candidate.CanUpdate &&
+                !candidate.HasUnknownVersion);
 
-            if (package is not null &&
-                package.CanUpdate &&
-                !package.HasUnknownVersion &&
-                !stillPending.Contains(package.Name))
+            if (package is not null && !stillPending.Contains(package.Name))
             {
                 stillPending.Add(package.Name);
             }
         }
 
-        if (stillPending.Count > 0)
+        if (stillPending.Count == 0)
         {
-            App.Operations.ReportStaleUpgrades(stillPending);
+            return;
         }
+
+        // R-5: o aviso também fica no lote que acabou de ser concluído, para a InfoBar
+        // do Histórico sobreviver ao auto-hide e ao reinício do app. Atualiza pelo ID
+        // capturado no evento, nunca pela posição "mais recente". A persistência acontece
+        // mesmo que outro lote já tenha começado: ela pertence ao lote original.
+        if (!string.IsNullOrWhiteSpace(historyBatchId))
+        {
+            try
+            {
+                await App.History.MarkBatchStaleAsync(historyBatchId, stillPending);
+            }
+            catch (Exception exception)
+            {
+                App.Operations.ReportHistoryPersistenceFailure(exception.Message);
+            }
+        }
+
+        // A barra de atividade só é atualizada se este ainda for o lote mais recente.
+        // Checar apenas IsBusy não bastaria: um lote posterior pode começar e terminar
+        // durante os awaits acima e deixar IsBusy falso outra vez. A geração no evento
+        // impede que o aviso antigo sobrescreva o status/atividade do lote novo.
+        App.Operations.TryReportStaleUpgrades(stillPending, batchGeneration);
     }
 
     private void UpdateActivityBar()

@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Asa.Views.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:Asa.ViewModels"
+    mc:Ignorable="d"
+    Background="Transparent"
+    Loaded="Page_Loaded"
+    Unloaded="Page_Unloaded">
+
+    <Page.KeyboardAccelerators>
+        <KeyboardAccelerator Key="F5" Invoked="Refresh_Invoked" />
+    </Page.KeyboardAccelerators>
+
+    <Page.Resources>
+        <!-- Cabeçalho clicável do card de lote: botão transparente que ocupa a largura
+             inteira, com alvo de 56 px e conteúdo alinhado à esquerda. -->
+        <Style x:Key="HistoryCardHeaderButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="{StaticResource AsaRadiusMd}" />
+            <Setter Property="Foreground" Value="{ThemeResource AsaTextPrimaryBrush}" />
+        </Style>
+    </Page.Resources>
+
+    <Grid Padding="{StaticResource AsaMarginPage}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Cabeçalho: título, descrição e ação de exportação. -->
+        <Grid ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="5" VerticalAlignment="Center">
+                <TextBlock Text="Histórico" Style="{StaticResource AsaHeadlineLgTextStyle}" />
+                <TextBlock
+                    Text="Lotes executados neste dispositivo"
+                    Style="{StaticResource AsaBodyLgTextStyle}" />
+            </StackPanel>
+
+            <StackPanel
+                Grid.Column="1"
+                Orientation="Horizontal"
+                Spacing="12"
+                VerticalAlignment="Center">
+                <ProgressRing
+                    Width="16"
+                    Height="16"
+                    IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Foreground="{ThemeResource AsaActionBrush}"
+                    VerticalAlignment="Center" />
+                <Button
+                    Style="{StaticResource GhostButtonStyle}"
+                    IsEnabled="{x:Bind ViewModel.CanExport, Mode=OneWay}"
+                    ToolTipService.ToolTip="Exportar todos os lotes registrados para um arquivo de texto"
+                    AutomationProperties.Name="Exportar log do histórico"
+                    Click="ExportLog_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE896;" FontSize="14" />
+                        <TextBlock Text="Exportar log" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Feedback discreto de Copiar/Exportar (auto-oculta). -->
+        <TextBlock
+            x:Name="ActionStatusText"
+            Grid.Row="1"
+            Margin="0,8,0,0"
+            Style="{StaticResource AsaBodySmTextStyle}"
+            Foreground="{ThemeResource AsaUpdateBrush}"
+            TextWrapping="Wrap"
+            Visibility="Collapsed" />
+
+        <!-- Aviso persistente de atualização MSIX não confirmada (R-5 / tokens 9.1). -->
+        <InfoBar
+            Grid.Row="2"
+            Margin="0,12,0,0"
+            IsOpen="{x:Bind ViewModel.MsixWarningOpen, Mode=OneWay}"
+            IsClosable="True"
+            Severity="Warning"
+            Title="{x:Bind ViewModel.MsixWarningTitle, Mode=OneWay}"
+            Message="{x:Bind ViewModel.MsixWarningMessage, Mode=OneWay}"
+            CloseButtonClick="MsixWarning_Close">
+            <InfoBar.ActionButton>
+                <Button Content="Ver atualizações" Click="GoToUpdates_Click" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <Grid Grid.Row="3" Margin="0,16,0,0">
+            <ScrollViewer
+                Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollMode="Disabled"
+                HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{x:Bind ViewModel.Entries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HistoryEntryViewModel">
+                            <Border
+                                Margin="0,0,0,12"
+                                Background="{ThemeResource AsaSurfaceCardBrush}"
+                                BorderBrush="{ThemeResource AsaBorderGhostBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource AsaRadiusMd}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Button
+                                        Style="{StaticResource HistoryCardHeaderButtonStyle}"
+                                        Click="ToggleLog_Click"
+                                        Tag="{x:Bind}"
+                                        AutomationProperties.Name="{x:Bind ExpandAutomationName, Mode=OneWay}">
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" MinWidth="140" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="20" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                                <TextBlock
+                                                    Text="{x:Bind Operation}"
+                                                    Style="{StaticResource AsaBodyMdStrongTextStyle}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Text="{x:Bind DetailsDisplay}"
+                                                    Style="{StaticResource AsaBodySmTextStyle}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    ToolTipService.ToolTip="{x:Bind DetailsDisplay}" />
+                                            </StackPanel>
+
+                                            <StackPanel
+                                                Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                Spacing="8"
+                                                VerticalAlignment="Center">
+                                                <Border
+                                                    Padding="6,2"
+                                                    CornerRadius="{StaticResource AsaRadiusSm}"
+                                                    Background="{x:Bind SourceBadge, Converter={StaticResource OriginBadgeBrushConverter}}">
+                                                    <TextBlock
+                                                        Text="{x:Bind SourceBadge}"
+                                                        Style="{StaticResource AsaLabelBadgeTextStyle}"
+                                                        Foreground="{ThemeResource AsaTextSecondaryBrush}"
+                                                        VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <Border
+                                                    Padding="9,3"
+                                                    CornerRadius="{StaticResource AsaRadiusSm}"
+                                                    Background="{x:Bind ResultFullLabel, Converter={StaticResource HistoryResultBrushConverter}}"
+                                                    VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        Text="{x:Bind ResultShortLabel}"
+                                                        Style="{StaticResource AsaLabelBadgeTextStyle}"
+                                                        Foreground="{x:Bind ResultFullLabel, Converter={StaticResource HistoryResultBrushConverter}, ConverterParameter=foreground}"
+                                                        ToolTipService.ToolTip="{x:Bind ResultFullLabel}" />
+                                                </Border>
+                                            </StackPanel>
+
+                                            <FontIcon
+                                                Grid.Column="2"
+                                                Glyph="{x:Bind ChevronGlyph, Mode=OneWay}"
+                                                FontSize="12"
+                                                Foreground="{ThemeResource AsaTextTertiaryBrush}"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.AccessibilityView="Raw" />
+                                        </Grid>
+                                    </Button>
+
+                                    <!-- Log expansível: superfície rebaixada, mono, altura máxima 320. -->
+                                    <Border
+                                        Grid.Row="1"
+                                        Margin="16,0,16,16"
+                                        Padding="12"
+                                        Background="{ThemeResource AsaSurfaceSunkenBrush}"
+                                        BorderBrush="{ThemeResource AsaBorderGhostBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource AsaRadiusDefault}"
+                                        Visibility="{x:Bind IsExpanded, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid RowSpacing="8">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    Text="LOG DO LOTE"
+                                                    Style="{StaticResource AsaLabelBadgeTextStyle}"
+                                                    VerticalAlignment="Center" />
+                                                <Button
+                                                    Grid.Column="1"
+                                                    Content="Copiar"
+                                                    Style="{StaticResource GhostButtonStyle}"
+                                                    Padding="12,4"
+                                                    Tag="{x:Bind}"
+                                                    Visibility="{x:Bind HasLog, Converter={StaticResource BoolToVisibility}}"
+                                                    AutomationProperties.Name="Copiar log do lote"
+                                                    Click="CopyLog_Click" />
+                                            </Grid>
+
+                                            <ScrollViewer
+                                                Grid.Row="1"
+                                                MaxHeight="320"
+                                                VerticalScrollBarVisibility="Auto"
+                                                HorizontalScrollMode="Disabled"
+                                                HorizontalScrollBarVisibility="Disabled">
+                                                <TextBlock
+                                                    Text="{x:Bind LogText, Mode=OneWay}"
+                                                    Style="{StaticResource AsaLabelCodeTextStyle}"
+                                                    Foreground="{ThemeResource AsaTextSecondaryBrush}"
+                                                    TextWrapping="Wrap"
+                                                    IsTextSelectionEnabled="True" />
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <ProgressRing
+                Width="28"
+                Height="28"
+                IsActive="{x:Bind ViewModel.ShowLoading, Mode=OneWay}"
+                Visibility="{x:Bind ViewModel.ShowLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Foreground="{ThemeResource AsaActionBrush}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+
+            <!-- Vazio contextual: nenhum lote registrado ainda. -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="420"
+                Spacing="12"
+                Margin="0,0,0,40"
+                Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Border
+                    Width="54"
+                    Height="54"
+                    CornerRadius="27"
+                    Background="{ThemeResource AsaSurfaceCardBrush}"
+                    HorizontalAlignment="Center">
+                    <FontIcon
+                        Glyph="&#xE81C;"
+                        FontSize="22"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource AsaTextTertiaryBrush}" />
+                </Border>
+                <TextBlock
+                    Text="Nenhuma operação registrada ainda."
+                    Style="{StaticResource AsaHeadlineMdTextStyle}"
+                    HorizontalAlignment="Center" />
+                <TextBlock
+                    Text="Os lotes de instalação e atualização aparecem aqui com data, resultado e log completo."
+                    Style="{StaticResource AsaBodySmTextStyle}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center" />
+                <Button
+                    Content="Ver atualizações pendentes"
+                    Style="{StaticResource PrimaryActionButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Click="GoToUpdates_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

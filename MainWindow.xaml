@@ -9,7 +9,8 @@
 
     <Grid x:Name="RootGrid" Background="Transparent">
         <Grid.Resources>
-            <!-- Pulso do badge "Atualizações": 1 → 0,75 → 1 em 1,6 s, no máximo 3 ciclos. -->
+            <!-- Pulso do badge de atualizações pendentes (na sidebar "Instalados"):
+                 1 → 0,75 → 1 em 1,6 s, no máximo 3 ciclos. -->
             <Storyboard x:Key="UpdatesBadgePulse">
                 <DoubleAnimationUsingKeyFrames
                     Storyboard.TargetName="UpdatesBadge"
@@ -24,7 +25,11 @@
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="{StaticResource AsaTitleBarGridLength}" />
-            <RowDefinition Height="{StaticResource AsaActivityBarGridLength}" />
+            <!-- Auto: com a barra de atividade Collapsed (estado padrão), a linha fica
+                 com 0 px — uma altura fixa aqui reservava uma faixa vazia permanente
+                 entre a title bar e a NavigationView. Quando a barra aparece, mede
+                 pelos próprios Height=56 (AsaActivityBarHeight). -->
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="{StaticResource AsaStatusBarGridLength}" />
         </Grid.RowDefinitions>
@@ -33,16 +38,19 @@
              Arrastre da janela: SetTitleBar(AppTitleBar) em MainWindow.xaml.cs. -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="{StaticResource AsaTitleBarHeight}"
               Background="{ThemeResource AsaSurfaceRailBrush}" ColumnSpacing="0">
+            <!-- Coluna final Auto reservada (largura 0): nenhum conteúdo à direita,
+                 pois a faixa superior da direita é ocupada pelos botões nativos
+                 de minimizar/maximizar/fechar (ExtendsContentIntoTitleBar). -->
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Pill "Asa" à esquerda. -->
+            <!-- Badge "Asa" à esquerda. -->
             <Border Grid.Column="0"
                     Background="{ThemeResource AsaSurfaceActiveBrush}"
-                    CornerRadius="{StaticResource AsaRadiusFull}"
+                    CornerRadius="{StaticResource AsaRadiusSm}"
                     Padding="10,2"
                     Margin="16,0,0,0"
                     VerticalAlignment="Center">
@@ -56,25 +64,6 @@
 
             <!-- Área de arrastre (centro, expande com a janela). -->
             <Grid Grid.Column="1" Background="Transparent" />
-
-            <!-- Badge "WINGET FACIL" à direita. -->
-            <Border Grid.Column="2"
-                    Background="{ThemeResource AsaCriticalContainerBrush}"
-                    Opacity="0.2"
-                    CornerRadius="{StaticResource AsaRadiusSm}"
-                    Padding="8,2"
-                    Margin="0,0,16,0"
-                    VerticalAlignment="Center"
-                    ToolTipService.ToolTip="winget fácil">
-                <TextBlock Text="WINGET FACIL"
-                           FontFamily="{StaticResource AsaFontMonoSemiBold}"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           CharacterSpacing="40"
-                           Foreground="{ThemeResource AsaOnCriticalBrush}"
-                           VerticalAlignment="Center"
-                           TextWrapping="NoWrap" />
-            </Border>
         </Grid>
 
         <!-- ==================== BARRA DE ATIVIDADE (56 px) ====================
@@ -143,13 +132,17 @@
 
         <!-- ==================== ÁREA DE CONTEÚDO (sidebar + frame) ====================
              NavigationView colapsa nativamente para 64 px quando Window.Width < 1040
-             (PaneDisplayMode="Auto" + CompactModeThresholdWidth). -->
+             (PaneDisplayMode="Auto" + CompactModeThresholdWidth). IsTitleBarAutoPadding-
+             Enabled=False: com ExtendsContentIntoTitleBar=true, o NavigationView adiciona
+             padding próprio de title bar (~32 px) acima do hambúrguer e do conteúdo — a
+             faixa de 48 px já é reservada explicitamente pela linha 0. -->
         <NavigationView x:Name="NavView" Grid.Row="2"
                         Background="Transparent"
                         IsBackButtonVisible="Collapsed"
                         IsSettingsVisible="False"
                         IsPaneOpen="True"
                         PaneDisplayMode="Auto"
+                        IsTitleBarAutoPaddingEnabled="False"
                         OpenPaneLength="{StaticResource AsaSidebarWidth}"
                         CompactPaneLength="{StaticResource AsaSidebarWidthCompact}"
                         CompactModeThresholdWidth="{StaticResource AsaSidebarCollapseThreshold}"
@@ -161,14 +154,11 @@
                         <FontIcon Glyph="&#xE721;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <!-- Badge de atualizações pendentes: o filtro "Atualizações" dentro de
+                     Instalados (SelectorBar) substitui a página independente. -->
                 <NavigationViewItem x:Name="InstalledNav" Content="Instalados" Tag="installed">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE71D;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem x:Name="UpdatesNav" Content="Atualizações" Tag="updates">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE895;" />
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.InfoBadge>
                         <InfoBadge x:Name="UpdatesBadge" Value="0" Visibility="Collapsed"

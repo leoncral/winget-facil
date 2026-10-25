@@ -47,7 +47,6 @@
 
     <!-- GridLength para definições de linha/coluna (RowDefinition.Height não aceita x:Double). -->
     <GridLength x:Key="AsaTitleBarGridLength">48</GridLength>
-    <GridLength x:Key="AsaActivityBarGridLength">56</GridLength>
     <GridLength x:Key="AsaStatusBarGridLength">32</GridLength>
 
     <!-- ==================== PALETA (dark-only; HC sobrescreve) ==================== -->
@@ -84,6 +83,11 @@
     <Color x:Key="AsaOnErrorColor">#FF690005</Color>
     <Color x:Key="AsaOnErrorContainerColor">#FFFFDAD6</Color>
 
+    <!-- Atenção (âmbar): usado no resultado de lotes parciais/cancelados no Histórico
+         (seção 9.1). Não confundir com AsaCritical (magenta), que sinaliza criticidade. -->
+    <Color x:Key="AsaCautionColor">#FFFFC24B</Color>
+    <Color x:Key="AsaOnCautionColor">#FF2A1A00</Color>
+
     <Color x:Key="AsaFocusRingColor">#FF00F0FF</Color>
 
     <SolidColorBrush x:Key="AsaSurfaceCanvasBrush" Color="{StaticResource AsaSurfaceCanvasColor}" />
@@ -114,6 +118,8 @@
     <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="{StaticResource AsaErrorContainerColor}" />
     <SolidColorBrush x:Key="AsaOnErrorBrush" Color="{StaticResource AsaOnErrorColor}" />
     <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="{StaticResource AsaOnErrorContainerColor}" />
+    <SolidColorBrush x:Key="AsaCautionBrush" Color="{StaticResource AsaCautionColor}" />
+    <SolidColorBrush x:Key="AsaOnCautionBrush" Color="{StaticResource AsaOnCautionColor}" />
 
     <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#14FFFFFF" />
     <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#29FFFFFF" />
@@ -254,6 +260,8 @@
             <Color x:Key="AsaOnErrorColor">#FF000000</Color>
             <Color x:Key="AsaOnErrorContainerColor">#FFFFFFFF</Color>
             <Color x:Key="AsaFocusRingColor">#FFFFFFFF</Color>
+            <Color x:Key="AsaCautionColor">#FFFFFF00</Color>
+            <Color x:Key="AsaOnCautionColor">#FF000000</Color>
             <SolidColorBrush x:Key="AsaSurfaceCanvasBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaSurfaceBaseBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaSurfaceSunkenBrush" Color="#FF000000" />
@@ -280,6 +288,8 @@
             <SolidColorBrush x:Key="AsaErrorContainerBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaOnErrorBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaOnErrorContainerBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AsaCautionBrush" Color="#FFFFFF00" />
+            <SolidColorBrush x:Key="AsaOnCautionBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="AsaBorderGhostBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="AsaBorderControlBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="AsaBorderHoverBrush" Color="#FF00FFFF" />

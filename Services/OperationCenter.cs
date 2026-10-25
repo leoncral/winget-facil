@@ -18,7 +18,7 @@ public sealed partial class OperationCenter : ObservableObject
     private readonly List<PackageOperation> _completedUpgrades = [];
     private readonly List<string> _log = [];
     private readonly object _logLock = new();
-    private readonly List<string> _canceledBeforeStart = [];
+    private readonly List<PackageOperation> _canceledBeforeStart = [];
     private int _canceledBeforeStartInstalls;
     private int _canceledBeforeStartUpgrades;
     private PackageOperation? _current;
@@ -26,6 +26,7 @@ public sealed partial class OperationCenter : ObservableObject
     private bool _cancelRequested;
     private bool _isCanceling;
     private bool _isCanceledActivity;
+    private bool _isFinalizing;
     private DateTimeOffset _lastStatusUpdate;
     private bool _isBusy;
     private bool _isActivityVisible;
@@ -35,6 +36,7 @@ public sealed partial class OperationCenter : ObservableObject
     private string _activityDetail = string.Empty;
     private int? _progressPercent;
     private OperationPhase _currentPhase;
+    private long _batchGeneration;
     private int _batchTotal;
     private int _batchDone;
     private int _batchSucceeded;
@@ -129,7 +131,7 @@ public sealed partial class OperationCenter : ObservableObject
     /// </summary>
     public Func<RunningAppUsage, Task<bool>>? ConfirmCloseRunningApp { get; set; }
 
-    public event EventHandler? QueueCompleted;
+    public event EventHandler<BatchCompletedEventArgs>? QueueCompleted;
 
     /// <summary>
     /// Notifica o ciclo de vida de um item da fila (enfileirado → executando → concluído/falhou)
@@ -158,7 +160,8 @@ public sealed partial class OperationCenter : ObservableObject
                     package.Id,
                     package.AvailableVersion,
                     package.Source,
-                    PackageOperationKind.Upgrade)))
+                    PackageOperationKind.Upgrade,
+                    package.Version)))
             {
                 count++;
             }
@@ -174,13 +177,103 @@ public sealed partial class OperationCenter : ObservableObject
             package.Id,
             package.AvailableVersion,
             package.Source,
-            PackageOperationKind.Upgrade));
+            PackageOperationKind.Upgrade,
+            package.Version));
     }
 
+    /// <summary>
+    /// True quando o Id já tem operação ativa (na fila ou em execução). O winget executa
+    /// upgrades por Id: duas linhas instaladas com o mesmo Id são o mesmo alvo de comando
+    /// e não podem gerar duas operações no mesmo lote.
+    /// </summary>
     public bool Contains(string packageId)
     {
         return (_current is not null && string.Equals(_current.Id, packageId, StringComparison.OrdinalIgnoreCase)) ||
                _queue.Any(operation => string.Equals(operation.Id, packageId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Operação ativa correspondente à instalação informada. Para upgrades a identidade
+    /// inclui a versão instalada e a origem, de modo que um evento de estado não seja
+    /// atribuído à linha errada quando o mesmo Id aparece em versões lado a lado.
+    /// Instalações não têm versão instalada de origem: a origem ainda faz parte da
+    /// identidade do alvo (o winget instala a partir de uma origem), mas versões lado a
+    /// lado da mesma origem continuam indistinguíveis. A origem é sempre comparada
+    /// exatamente: vazia significa "desconhecida", nunca "qualquer origem", e não restaura
+    /// estado em nenhuma linha. Quando a identidade não permite distinguir a linha, o estado
+    /// terminal só é pintado se houver uma única candidata; as demais são liberadas pelo
+    /// <see cref="PackagesViewModel"/> em vez de permanecerem presas em Queued.
+    /// </summary>
+    public PackageOperation? FindActiveOperation(string packageId, string installedVersion, string source)
+    {
+        if (_current is not null && Matches(_current, packageId, installedVersion, source))
+        {
+            return _current;
+        }
+
+        foreach (var operation in _queue)
+        {
+            if (Matches(operation, packageId, installedVersion, source))
+            {
+                return operation;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool Matches(
+        PackageOperation operation,
+        string packageId,
+        string installedVersion,
+        string source)
+    {
+        if (!string.Equals(operation.Id, packageId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (operation.Kind != PackageOperationKind.Upgrade)
+        {
+            // Instalação: o comando identifica o alvo por Id + origem. Sem versão instalada
+            // de origem não há como distinguir versões lado a lado; a origem ao menos evita
+            // marcar uma instalação de outra origem com o mesmo Id. Uma operação sem origem
+            // (desconhecida) não pode funcionar como curinga nem identificar a linha de
+            // origem: nenhuma linha deve ser restaurada como "Na fila".
+            return SameOrigin(operation.Source, source);
+        }
+
+        // Upgrades sempre carregam a versão instalada de origem; comparar também a origem
+        // evita casar duas instalações distintas que compartilham Id e versão. Sem versão
+        // instalada a identidade está incompleta: não restaura estado em linha nenhuma.
+        var normalizedInstalledVersion = operation.InstalledVersion?.Trim();
+        var normalizedCandidateVersion = installedVersion?.Trim();
+
+        return !string.IsNullOrEmpty(normalizedInstalledVersion) &&
+               !string.IsNullOrEmpty(normalizedCandidateVersion) &&
+               string.Equals(
+                   normalizedInstalledVersion,
+                   normalizedCandidateVersion,
+                   StringComparison.OrdinalIgnoreCase) &&
+               SameOrigin(operation.Source, source);
+    }
+
+    /// <summary>
+    /// Compara origens normalizando espaços. Origem vazia é desconhecida: não identifica
+    /// linha nenhuma e nunca casa com outra origem (nem com outra vazia), pois duas origens
+    /// desconhecidas não provam ser a mesma.
+    /// </summary>
+    private static bool SameOrigin(string? operationSource, string? installSource)
+    {
+        var normalizedOperationSource = operationSource?.Trim();
+        var normalizedInstallSource = installSource?.Trim();
+
+        return !string.IsNullOrEmpty(normalizedOperationSource) &&
+               !string.IsNullOrEmpty(normalizedInstallSource) &&
+               string.Equals(
+                   normalizedOperationSource,
+                   normalizedInstallSource,
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     public void DismissActivity()
@@ -200,7 +293,7 @@ public sealed partial class OperationCenter : ObservableObject
     /// </summary>
     public async Task CancelCurrentAsync()
     {
-        if (!IsBusy || _isCanceling || _cancelRequested)
+        if (!IsBusy || _isCanceling || _cancelRequested || _isFinalizing)
         {
             return;
         }
@@ -217,7 +310,7 @@ public sealed partial class OperationCenter : ObservableObject
             while (_queue.Count > 0)
             {
                 var pending = _queue.Dequeue();
-                _canceledBeforeStart.Add(pending.Id);
+                _canceledBeforeStart.Add(pending);
                 if (pending.Kind == PackageOperationKind.Install)
                 {
                     _canceledBeforeStartInstalls++;
@@ -257,15 +350,32 @@ public sealed partial class OperationCenter : ObservableObject
     }
 
     /// <summary>
-    /// Called after a batch when winget reported success but the packages still show an update.
+    /// Publica o aviso de atualizações não confirmadas somente se o lote identificado por
+    /// <paramref name="batchGeneration"/> ainda for o lote mais recente. Verificar apenas
+    /// <see cref="IsBusy"/> não basta: um lote posterior pode começar e terminar durante os
+    /// awaits da verificação, deixando <see cref="IsBusy"/> falso novamente. Nesse caso o
+    /// aviso não pode substituir o status/atividade do lote novo (a persistência no
+    /// histórico é feita pelo chamador, independentemente do retorno).
+    /// Retorna <c>true</c> quando a barra de atividade foi atualizada.
     /// </summary>
-    public void ReportStaleUpgrades(IReadOnlyList<string> packageNames)
+    public bool TryReportStaleUpgrades(IReadOnlyList<string> packageNames, long batchGeneration)
     {
-        if (packageNames.Count == 0)
+        if (packageNames.Count == 0 ||
+            IsBusy ||
+            batchGeneration != _batchGeneration)
         {
-            return;
+            return false;
         }
 
+        PublishStaleUpgrades(packageNames);
+        return true;
+    }
+
+    /// <summary>
+    /// Called after a batch when winget reported success but the packages still show an update.
+    /// </summary>
+    private void PublishStaleUpgrades(IReadOnlyList<string> packageNames)
+    {
         // Um aviso de "atualização não confirmada" é permanente (não auto-oculta como o
         // cancelamento), então o estado de cancelamento não deve valer aqui.
         IsCanceledActivity = false;
@@ -284,6 +394,20 @@ public sealed partial class OperationCenter : ObservableObject
         }
 
         AddLog($"Aviso: {ActivityDetail}");
+    }
+
+    /// <summary>
+    /// Registra no log da atividade uma falha não fatal ao persistir o histórico, sem
+    /// interromper a operação que já terminou.
+    /// </summary>
+    public void ReportHistoryPersistenceFailure(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        AddLog($"Não foi possível atualizar o aviso no histórico: {message}");
     }
 
     public string GetLogText()
@@ -333,6 +457,9 @@ public sealed partial class OperationCenter : ObservableObject
 
     private void ResetBatch()
     {
+        // Nova geração a cada lote: um evento de conclusão antigo não pode publicar avisos
+        // na barra de atividade de um lote iniciado depois dele.
+        _batchGeneration++;
         _batchStartTime = DateTimeOffset.Now;
         _batchTotal = 0;
         _batchDone = 0;
@@ -378,7 +505,7 @@ public sealed partial class OperationCenter : ObservableObject
         var cancelRequestedDuringBatch = false;
         var hasInstalls = false;
         var hasUpgrades = false;
-        var processedIds = new List<string>();
+        var processedOperations = new List<PackageOperation>();
 
         while (_queue.Count > 0)
         {
@@ -391,7 +518,7 @@ public sealed partial class OperationCenter : ObservableObject
             {
                 hasUpgrades = true;
             }
-            processedIds.Add(operation.Id);
+            processedOperations.Add(operation);
             _current = operation;
             _lastStatusUpdate = DateTimeOffset.MinValue;
             var position = _batchDone + 1;
@@ -664,11 +791,10 @@ public sealed partial class OperationCenter : ObservableObject
         }
 
         _current = null;
-        IsBusy = false;
 
         // Itens cancelados antes de começar (dequeuados em CancelCurrentAsync) também fazem
         // parte do lote e entram no histórico.
-        processedIds.AddRange(_canceledBeforeStart);
+        processedOperations.AddRange(_canceledBeforeStart);
 
         // Itens cancelados antes de começar também contam para decidir se o lote foi misto
         // (instalação + atualização) e, portanto, qual rótulo usar no histórico.
@@ -685,16 +811,32 @@ public sealed partial class OperationCenter : ObservableObject
         // o último item tenha terminado com sucesso (corrida com o encerramento do winget).
         var finalCanceled = lastFinalizedCanceled || cancelRequestedDuringBatch;
 
-        // F1-9: salva o lote no histórico sem bloquear o fluxo da UI.
+        // Snapshot do lote antes de qualquer await: IsBusy continua true durante a gravação,
+        // mas itens enfileirados nesse intervalo pertencem ao PRÓXIMO lote e não podem
+        // contaminar o resumo/ID deste.
+        var completedUpgrades = _completedUpgrades.ToArray();
+        var completedTotal = _batchTotal;
+        var completedGeneration = _batchGeneration;
+
+        // Persiste a origem de cada item: o badge do histórico não pode assumir "winget"
+        // quando o lote é misto ou veio da msstore.
+        var itemSources = processedOperations
+            .Select(operation => operation.Source?.Trim() ?? string.Empty)
+            .ToArray();
+
+        // F1-9: grava o lote antes de a operação ser dada como concluída. Se o histórico
+        // falhar, a operação continua, mas o problema fica registrado no log da atividade.
         var entry = new HistoryEntry
         {
+            BatchId = Guid.NewGuid().ToString("N"),
             Timestamp = DateTimeOffset.Now,
             Operation = hasInstalls && hasUpgrades
                 ? "Instalação e atualização"
                 : hasInstalls ? "Instalação"
                 : "Atualização",
-            ItemCount = _batchTotal,
-            Items = processedIds.ToArray(),
+            ItemCount = completedTotal,
+            Items = processedOperations.Select(operation => operation.Id).ToArray(),
+            ItemSources = itemSources,
             Result = finalCanceled
                 ? "Cancelado"
                 : _batchFailed > 0 && _batchSucceeded > 0
@@ -705,18 +847,56 @@ public sealed partial class OperationCenter : ObservableObject
                             ? "Sucesso com itens ignorados"
                             : "Sucesso",
             Duration = DateTimeOffset.Now - _batchStartTime,
-            Source = "winget",
+            Source = BuildSourceSummary(itemSources),
             RawLog = GetLogText()
         };
-        _ = _history.SaveBatchAsync(entry);
+
+        string? historyBatchId = null;
+        _isFinalizing = true;
+        try
+        {
+            await _history.SaveBatchAsync(entry);
+            historyBatchId = entry.BatchId;
+        }
+        catch (Exception exception)
+        {
+            AddLog($"Não foi possível salvar o histórico: {exception.Message}");
+        }
+        finally
+        {
+            // O lote já terminou; um cancelamento nesse intervalo seria um no-op e não
+            // pode mover para _canceledBeforeStart itens que já pertencem ao próximo lote.
+            _isFinalizing = false;
+        }
+
+        // Itens que chegaram durante a gravação formam um novo lote (o seu _batchTotal foi
+        // incrementado por Enqueue). Restaura o total deste lote antes de finalizá-lo.
+        var pendingCount = _queue.Count;
+        _batchTotal = completedTotal;
+        IsBusy = false;
+
+        // O ID do lote é capturado agora e viaja no evento: se outro lote começar antes
+        // da verificação pós-atualização, o aviso ainda será gravado na entrada correta.
+        var completedBatch = new BatchCompletedEventArgs(
+            historyBatchId,
+            completedUpgrades,
+            completedGeneration);
 
         if (finalCanceled)
         {
-            CompleteCanceledBatch();
+            CompleteCanceledBatch(completedBatch);
         }
         else
         {
-            CompleteBatch();
+            CompleteBatch(completedBatch);
+        }
+
+        // Reinicia a fila que tenha chegado enquanto o histórico era gravado.
+        if (pendingCount > 0)
+        {
+            ResetBatch();
+            _batchTotal = pendingCount;
+            StartProcessing();
         }
     }
 
@@ -724,7 +904,7 @@ public sealed partial class OperationCenter : ObservableObject
     /// Finaliza um lote interrompido pelo usuário: mostra "Cancelado" na barra de atividade
     /// usando o brush de atenção âmbar (o mesmo dos avisos) e permite a auto-ocultação.
     /// </summary>
-    private void CompleteCanceledBatch()
+    private void CompleteCanceledBatch(BatchCompletedEventArgs completedBatch)
     {
         HasError = false;
         IsCanceledActivity = true;
@@ -732,10 +912,10 @@ public sealed partial class OperationCenter : ObservableObject
         ActivityTitle = "Cancelado";
         ActivityDetail = "A operação foi cancelada pelo usuário.";
         IsActivityVisible = true;
-        QueueCompleted?.Invoke(this, EventArgs.Empty);
+        QueueCompleted?.Invoke(this, completedBatch);
     }
 
-    private void CompleteBatch()
+    private void CompleteBatch(BatchCompletedEventArgs completedBatch)
     {
         if (_batchFailed == 0 && _batchSkipped == 0)
         {
@@ -771,7 +951,7 @@ public sealed partial class OperationCenter : ObservableObject
         }
 
         IsActivityVisible = true;
-        QueueCompleted?.Invoke(this, EventArgs.Empty);
+        QueueCompleted?.Invoke(this, completedBatch);
     }
 
     private async Task RestartServicesAsync(IReadOnlyList<string> services)
@@ -825,7 +1005,14 @@ public sealed partial class OperationCenter : ObservableObject
         {
             ItemStateChanged?.Invoke(
                 this,
-                new OperationItemEventArgs(operation.Id, state, operation.Kind, message, canceledBeforeStart));
+                new OperationItemEventArgs(
+                    operation.Id,
+                    state,
+                    operation.Kind,
+                    message,
+                    operation.InstalledVersion,
+                    operation.Source,
+                    canceledBeforeStart));
         }
 
         if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
@@ -943,6 +1130,22 @@ public sealed partial class OperationCenter : ObservableObject
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
     }
 
+    private static string BuildSourceSummary(IReadOnlyCollection<string> sources)
+    {
+        var distinct = sources
+            .Select(source => source.Trim())
+            .Where(source => source.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return distinct.Length switch
+        {
+            0 => string.Empty,
+            1 => distinct[0],
+            _ => string.Join(", ", distinct)
+        };
+    }
+
     [GeneratedRegex(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")]
     private static partial Regex AnsiEscapeRegex();
 
@@ -972,8 +1175,41 @@ public enum PackageOperationState
 }
 
 /// <summary>
+/// Argumentos de <see cref="OperationCenter.QueueCompleted"/>: o ID do lote no histórico
+/// (nulo quando a gravação falhou), a relação de atualizações concluídas e a geração do
+/// lote. Tudo é capturado no fim do lote para que os awaits da verificação pós-atualização
+/// não confundam o lote concluído com um lote novo que tenha começado nesse intervalo.
+/// </summary>
+public sealed class BatchCompletedEventArgs : EventArgs
+{
+    public BatchCompletedEventArgs(
+        string? historyBatchId,
+        IReadOnlyList<PackageOperation> completedUpgrades,
+        long batchGeneration)
+    {
+        HistoryBatchId = historyBatchId;
+        CompletedUpgrades = completedUpgrades;
+        BatchGeneration = batchGeneration;
+    }
+
+    /// <summary>ID da entrada de histórico gravada, ou nulo se a gravação falhou.</summary>
+    public string? HistoryBatchId { get; }
+
+    /// <summary>Atualizações que o winget reportou como bem-sucedidas neste lote.</summary>
+    public IReadOnlyList<PackageOperation> CompletedUpgrades { get; }
+
+    /// <summary>
+    /// Geração do lote concluído. Comparada com <see cref="OperationCenter.TryReportStaleUpgrades"/>
+    /// para impedir que um evento antigo sobrescreva a atividade de um lote mais novo.
+    /// </summary>
+    public long BatchGeneration { get; }
+}
+
+/// <summary>
 /// Argumentos de <see cref="OperationCenter.ItemStateChanged"/>: identifica o pacote pelo Id
-/// (sem case sensitivity) para que cada ViewModel encontre a linha correspondente.
+/// e, nos upgrades, também pela versão instalada e origem. O Id sozinho não distingue
+/// versões lado a lado do mesmo pacote (ex.: .NET SDK), então a identidade completa evita
+/// pintar a linha errada.
 /// </summary>
 public sealed class OperationItemEventArgs : EventArgs
 {
@@ -982,16 +1218,20 @@ public sealed class OperationItemEventArgs : EventArgs
         PackageOperationState state,
         PackageOperationKind kind,
         string message,
+        string installedVersion,
+        string source,
         bool canceledBeforeStart = false)
     {
         PackageId = packageId;
         State = state;
         Kind = kind;
         Message = message;
+        InstalledVersion = installedVersion ?? string.Empty;
+        Source = source ?? string.Empty;
         CanceledBeforeStart = canceledBeforeStart;
     }
 
-    /// <summary>Id do pacote (winget), usado para casar com a linha exibida.</summary>
+    /// <summary>Id do pacote (winget), usado para casar com as linhas exibidas.</summary>
     public string PackageId { get; }
 
     public PackageOperationState State { get; }
@@ -1001,6 +1241,19 @@ public sealed class OperationItemEventArgs : EventArgs
 
     /// <summary>Mensagem de falha (vazia nos demais estados).</summary>
     public string Message { get; }
+
+    /// <summary>
+    /// Versão instalada que originou o upgrade (vazia em instalações). Combina com
+    /// <see cref="PackageId"/> e <see cref="Source"/> para achar a linha exata.
+    /// </summary>
+    public string InstalledVersion { get; }
+
+    /// <summary>
+    /// Origem do alvo (ex.: winget, msstore) herdada da operação enfileirada, usada no
+    /// matching exato da linha. Vazia significa "desconhecida" e nunca funciona como
+    /// curinga; nesse caso nenhuma linha é escolhida por suposição.
+    /// </summary>
+    public string Source { get; }
 
     /// <summary>
     /// True quando o item foi cancelado ainda na fila (nunca começou): a linha correspondente
